@@ -13,7 +13,7 @@ of the protocol.
 ## ## ## Top matter
 
 import bgpy_misc as bmisc
-from bgpy_misc import constant_set
+from bgpy_misc import ConstantSet
 
 ## ## ## Constants
 
@@ -22,7 +22,7 @@ BGP_TCP_PORT = 179
 
 # BGP Message Types -- see RFC 4271, also
 # https://www.iana.org/assignments/bgp-parameters/bgp-parameters-1.csv
-msg_type = constant_set(
+msg_type = ConstantSet(
     OPEN            = 1,    # RFC 4271
     UPDATE          = 2,    # RFC 4271
     NOTIFICATION    = 3,    # RFC 4271
@@ -31,13 +31,13 @@ msg_type = constant_set(
 )
 
 # BGP version
-bgp_ver = constant_set(
+bgp_ver = ConstantSet(
     FOUR            = 4,    # BGP version 4
 )
 
 # BGP Path Attributes -- see RFC 4271, others, also
 # https://www.iana.org/assignments/bgp-parameters/bgp-parameters-2.csv
-attr_code = constant_set(
+attr_code = ConstantSet(
     ORIGIN              = 1,    # RFC 4271
     AS_PATH             = 2,    # RFC 4271
     NEXT_HOP            = 3,    # RFC 4271
@@ -67,7 +67,7 @@ attr_code = constant_set(
 
 # BGP Error Codes -- see RFC 4271, also
 # https://www.iana.org/assignments/bgp-parameters/bgp-parameters-3.csv
-err_code = constant_set(
+err_code = ConstantSet(
     ( "msghdr", "Message Header Error",         1 ), # RFC 4271
     ( "opnmsg", "OPEN Message Error",           2 ), # RFC 4271
     ( "updmsg", "UPDATE Message Error",         3 ), # RFC 4271
@@ -90,13 +90,13 @@ err_code = constant_set(
 #   (BGP Cease NOTIFICATION message subcodes)
 # https://www.iana.org/assignments/bgp-parameters/route-refresh-error-subcodes.csv
 #   (BGP ROUTE-REFRESH Message Error subcodes)
-err_sub_msghdr = constant_set(
+err_sub_msghdr = ConstantSet(
     ( "unspec", "Unspecific",                   0 ),    # RFC Errata 4493
     ( "notsyn", "Connection Not Synchronized",  1 ),    # RFC 4271
     ( "msglen", "Bad Message Length",           2 ),    # RFC 4271
     ( "msgtyp", "Bad Message Type",             3 ),    # RFC 4271
 )
-err_sub_opnmsg = constant_set(
+err_sub_opnmsg = ConstantSet(
     ( "unspec", "Unspecific",                   0 ),    # RFC Errata 4493
     ( "vernum", "Unsupported Version Number",   1 ),    # RFC 4271
     ( "peeras", "Bad Peer AS",                  2 ),    # RFC 4271
@@ -105,7 +105,7 @@ err_sub_opnmsg = constant_set(
     ( "hldtim", "Unacceptable Hold Time",       6 ),    # RFC 4271
     ( "capab",  "Unsupported Capability",       7 ),    # RFC 5492
 )
-err_sub_updmsg = constant_set(
+err_sub_updmsg = ConstantSet(
     ( "unspec", "Unspecific",                   0 ),    # RFC Errata 4493
     ( "attlst", "Malformed Attribute List",     1 ),    # RFC 4271
     ( "unkwel", "Unrecognized Well-known Attribute", 2 ), # RFC 4271
@@ -119,13 +119,13 @@ err_sub_updmsg = constant_set(
     ( "aspath", "Malformed AS_PATH",            11 ),   # RFC 4271
 )
 # there are no subcodes for "Hold Timer Expired"
-err_sub_fsm = constant_set(
+err_sub_fsm = ConstantSet(
     ( "unspec", "Unspecified Error", 0 ), # RFC 6608
     ( "opsent", "Receive Unexpected Message in OpenSent State", 1 ), # RFC 6608
     ( "opconf", "Receive Unexpected Message in OpenConfirm State", 2 ), # RFC 6608
     ( "establ", "Receive Unexpected Message in Established State", 3 ), # RFC 6608
 )
-err_sub_cease = constant_set(
+err_sub_cease = ConstantSet(
     ( "maxpfx", "Maximum Number of Prefixes Reached", 1 ), # RFC 4486
     ( "adshut", "Administrative Shutdown",      2 ), # RFC 4486 & RFC8203
     ( "config", "Peer De-configured",           3 ), # RFC 4486
@@ -136,7 +136,7 @@ err_sub_cease = constant_set(
     ( "resour", "Out of Resources",             8 ), # RFC 4486
     ( "reset",  "Hard Reset",                   9 ), # RFC 8538
 )
-err_sub_rfrmsg = constant_set(
+err_sub_rfrmsg = ConstantSet(
     ( "reserv", "Reserved",                     0 ), # RFC 7313
     ( "msglen", "Invalid Message Length",       1 ), # RFC 7313
 )

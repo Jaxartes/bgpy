@@ -98,7 +98,7 @@ def stamprint(fp, t, msg):
             format(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(tu)),
                    tu, msg), file=fp)
 
-class constant_set(object):
+class ConstantSet(object):
     """A set of constants which can be accessed as attributes easily.
     Also has ability to print informational names of them."""
 
@@ -116,4 +116,71 @@ class constant_set(object):
             self._printable_names[k] = k
             self._reverse[kvattr[k]] = k
 
-    # XXX add method for getting printable name and for reverse lookup
+    def value2name(self, value):
+        "reverse mapping -- value to short name"
+        if value in self._reverse:
+            return(self._reverse(value))
+        else:
+            return(repr(value))
+
+    def value2printable_name(self, value):
+        "reverse mapping -- value to printable name"
+        if value in self._reverse:
+            return(self._printable_names[self._reverse[value]])
+        else:
+            return(repr(value))
+
+class ParseCtx(object):
+    """Context information for use while parsing BGP messages in binary form.
+    Includes:
+        buf - the message being parsed; type "bytes"
+        pos - current parse position in 'buf'
+        end - parse position after the last one considered relevant
+        as4 - whether 4 byte AS numbers are enabled."""
+
+    __slots__ = ["buf", "pos", "end", "as4"]
+
+    def __init__(self, obj, pos = None, end = None, as4 = None):
+        """Constructor:
+            ParseCtx(bytes)
+                new context for whole of bytes
+            ParseCtx(bytes, pos=X, end=X, as4=Y)
+                fancier form: limited substring of bytes, 'as4' flag specified
+            ParseCtx(ctx)
+                copy of another context
+        """
+
+        # First, set up as if optional parameters aren't there
+        if type(obj) is bytes:
+            self.buf = obj
+            self.pos = 0
+            self.end = len(obj)
+            self.as4 = False
+        elif type(obj) is ParseCtx:
+            self.buf = obj.buf
+            self.pos = obj.pos
+            self.end = obj.end
+            self.as4 = obj.as4
+        else:
+            raise(TypeError("ParseCtx takes bytes or ParseCtx"))
+
+        # Now, apply the optional parameters
+        if end is not None:
+            if type(end) is not int:
+                raise(TypeError("end parameter for ParseCtx must be int"))
+            elif end < 0 or self.pos + end > self.end:
+                raise(IndexError("end value "+str(end)+" out of range"))
+            else:
+                self.end = self.pos + end
+        if pos is not None:
+            if type(pos) is not int:
+                raise(TypeError("pos parameter for ParseCtx must be int"))
+            elif pos < 0 or self.pos + pos > self.end:
+                raise(IndexError("pos value "+str(pos)+" out of range"))
+            else:
+                self.pos += pos
+        if as4 is not None:
+            self.as4 = bool(as4)
+
+    # XXX methods to access, move parse position
+
