@@ -280,11 +280,11 @@ def ParseCtx_test5():
 
     # a bunch of indexes/slices to try
     ixs = []
-    for i in range(-70, 70, 5): ixs.append(i)
+    for i in range(-60, 60, 5): ixs.append(i)
     ixs.append(None) # intentionally bogus
     ixs.append(1.5)  # intentionally bogus
-    for i in range(-70, 70, 7):
-        for j in range(-70, 70, 7):
+    for i in range(-63, 63, 7):
+        for j in range(-64, 64, 8):
             ixs.append(slice(i, j))
 
     # try those indexes/slices to see if they get the same results for
