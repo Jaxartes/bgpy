@@ -7,9 +7,7 @@ intended when connected to a real BGP implementation is the goal."""
 
 ## ## ## Top matter
 
-import sys
 from sys import stderr
-import time
 import bgpy_misc as bmisc
 
 class TestFailureError(Exception):
@@ -86,6 +84,8 @@ def ParseCtx_test():
     ParseCtx_test1()
     ParseCtx_test2()
     ParseCtx_test3()
+    ParseCtx_test4()
+    ParseCtx_test5()
     print("ParseCtx_test completed ok", file=stderr)
 
 # test vector for ParseCtx_test1(): input to constructor; expected
@@ -154,6 +154,7 @@ def ParseCtx_test2():
     __repr__, __bytes__, dump, and the nonexistent __str__"""
 
     for (i, xr, xb, xd) in ParseCtx_tv2:
+        i = bmisc.ParseCtx(i)
         xs = xr
 
         gr = repr(i)
@@ -188,7 +189,7 @@ def ParseCtx_test3():
         if type(x) is tuple:
             inputs.append(bmisc.ParseCtx(*i))
     for t in ParseCtx_tv2:
-        inputs.append(t[0])
+        inputs.append(bmisc.ParseCtx(t[0]))
 
     # See what bool(), len(), iter() give us for them, which correspond
     # to what bytes() does.
@@ -207,4 +208,109 @@ def ParseCtx_test3():
             raise TestFailureError("iter() left it non-empty")
     print("ParseCtx_test3 completed ok", file=stderr)
 
-# XXX write ParseCtx testers for methods: get_byte(), get_bytes(), get_be2(), get_be4(), __getitem__()
+def ParseCtx_test4():
+    """Tests the following methods of bmisc.ParseCtx:
+    get_byte(), get_bytes(), get_be2(), get_be4()"""
+
+    # Test vector: parallel lists of byte values, how to try reading them,
+    # and what to expect to get.
+    tv = [
+        ([97], "get_byte", (), 97),
+        ([98, 99], "get_bytes", (2,), b"bc"),
+        ([100, 101], "get_be2", (), 25701),
+        ([102, 103, 104], "get_bytes", (3,), b"fgh"),
+        ([], "get_bytes", (0,), b""),
+        ([7, 250], "get_be2", (), 2042),
+        ([250, 7], "get_be2", (), 64007),
+        ([1, 3, 5, 7], "get_be4", (), 16975111),
+        ([200, 100, 50, 25], "get_be4", (), 3362009625),
+        ([0], "get_byte", (), 0),
+        ([0, 0, 0, 0, 0], "get_bytes", (5,), b"\000\000\000\000\000"),
+        ([], "get_bytes", (0,), b""),
+        ([1, 1, 0, 255, 1], "get_bytes", (5,), b"\001\001\000\377\001"),
+        ([254, 0], "get_be2", (), 65024),
+        ([0, 254], "get_be2", (), 254),
+        ([0, 0], "get_be2", (), 0),
+        ([0, 0, 0, 0], "get_be4", (), 0),
+        ([0, 0, 253, 252], "get_be4", (), 65020),
+        ([0, 251, 0, 250], "get_be4", (), 16449786),
+        ([0, 249, 248, 0], "get_be4", (), 16381952),
+        ([247, 0, 0, 246], "get_be4", (), 4143972598),
+        ([245, 0, 244, 0], "get_be4", (), 4110480384),
+        ([243, 242, 0, 0], "get_be4", (), 4092723200)
+    ]
+
+    # Build the ParseCtx out of all the lists of bytes
+    bs = []
+    for t in tv: bs += t[0]
+    pc = bmisc.ParseCtx(bytes(bs))
+
+    print("ParseCtx_test4() test input:", file=stderr)
+    print("    "+pc.dump(), file=stderr)
+
+    # Go through the parsing
+    for t in tv:
+        fn = t[1]
+        fa = t[2]
+        x = t[3]
+        g = eval("bmisc.ParseCtx."+fn)(pc, *fa)
+        print("pc."+fn+str(fa)+" => "+repr(g)+" exp "+repr(x), file=stderr)
+        if type(g) is bytes: raise TestFailureError("got bytes")
+        if type(g) is bmisc.ParseCtx: g = bytes(g)
+        if g != x: raise TestFailureError(g = g, e = x)
+
+    # Now the ParseCtx should be empty.  Check that.  One might expect
+    # to also test that get_*() all handle an empty/exhausted ParseCtx()
+    # properly, with exceptions; but ParseCtx() isn't really meant to
+    # be used that way.
+    if len(pc):
+        raise TestFailureError("pc is not empty at end")
+
+    print("ParseCtx_test4 completed ok", file=stderr)
+
+def ParseCtx_test5():
+    """Test bmisc.ParseCtx.__getitem__()"""
+
+    # a ParseCtx to use for testing; and the bytes it contains
+    pc = bmisc.ParseCtx(b"This is a test. This is only a test."+
+                        b" What else would it be?")
+    if len(pc) != 59: raise Error("internal error")
+    pc = bmisc.ParseCtx(pc, pos = 3, end = 54)
+    bs = bytes(pc)
+
+    # a bunch of indexes/slices to try
+    ixs = []
+    for i in range(-70, 70, 5): ixs.append(i)
+    ixs.append(None) # intentionally bogus
+    ixs.append(1.5)  # intentionally bogus
+    for i in range(-70, 70, 7):
+        for j in range(-70, 70, 7):
+            ixs.append(slice(i, j))
+
+    # try those indexes/slices to see if they get the same results for
+    # pc & bs (ParseCtx & bytes)
+    for i in ixs:
+        # collect results
+        try:
+            g = [False, pc[i]]
+            if type(i) is slice: g[1] = bytes(g[1])
+        except Exception as e: g = [True, e]
+        try: x = [False, bs[i]]
+        except Exception as e: x = [True, e]
+
+        # and results as appropriate to comparison
+        for l in [g, x]:
+            if l[0]:
+                # an exception, only compare the type, not the text
+                l.append(type(l[1]))
+            else:
+                # a result, compare exactly
+                l.append(l[1])
+
+        # report & check
+        print("index "+repr(i)+": got "+repr(g[1])+" exp "+repr(x[1]),
+              file=stderr)
+        if g[2] != x[2]:
+            raise TestFailureError()
+
+    print("ParseCtx_test5 completed ok", file=stderr)

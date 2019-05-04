@@ -223,10 +223,10 @@ class ParseCtx(object):
         if self.pos + 4 > self.end:
             raise KeyError("not enough more bytes (4 requested)")
         else:
-            got = ((self.buf[self.pos] << 24) |
-                   (self.buf[self.pos] << 16) |
-                   (self.buf[self.pos] << 8) |
-                   (self.buf[self.pos]))
+            got = ((self.buf[self.pos    ] << 24) |
+                   (self.buf[self.pos + 1] << 16) |
+                   (self.buf[self.pos + 2] << 8 ) |
+                   (self.buf[self.pos + 3]      ))
             self.pos += 4
             return got
     def dump(self):
@@ -234,16 +234,24 @@ class ParseCtx(object):
         return("ParseCtx{"+str(self.buf)+
                "["+str(self.pos)+":"+str(self.end)+"],as4="+
                str(self.as4)+"}")
-    def _reindex(self, idx):
+    def _reindex(self, idx, fix = False):
         """Convert an index to go within self.buf"""
         if type(idx) is not int:
             raise TypeError("ParseCtx indices must be integers")
-        elif self.pos + idx >= self.end or self.end + idx < self.pos:
-            raise IndexError("ParseCtx index out of range")
-        elif idx < 0:
-            return(self.end + self.key)
+        elif self.pos + idx >= self.end:
+            if fix:
+                return(self.end)
+            else:
+                raise IndexError("ParseCtx index out of range")
+        elif idx >= 0:
+            return(self.pos + idx)
+        elif self.end + idx < self.pos:
+            if fix:
+                return(self.pos)
+            else:
+                raise IndexError("ParseCtx index out of range")
         else:
-            return(self.pos + self.key)
+            return(self.end + idx)
     def __getitem__(self, key):
         """get byte at index or slice"""
         if type(key) is slice:
@@ -254,11 +262,11 @@ class ParseCtx(object):
                 if key.start is None:
                     start = self.pos
                 else:
-                    start = self._reindex(key.start)
+                    start = self._reindex(key.start, True)
                 if key.stop is None:
                     stop = self.end
                 else:
-                    stop = self._reindex(key.stop)
+                    stop = self._reindex(key.stop, True)
                 return(self.buf[start:stop])
             # This code is a little inconsistent with other
             # implementations in the slice case; it won't tolerate
@@ -267,4 +275,3 @@ class ParseCtx(object):
         else:
             # single index
             return(self.buf[self._reindex(key)])
-
