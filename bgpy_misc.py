@@ -4,8 +4,6 @@
 
 ## ## ## Top matter
 
-import socket
-import sys
 import time
 
 ## ## ## Functions
@@ -66,7 +64,7 @@ def superchars(s, append_chars=[]):
     while i < l:
         if s[i] == "\\":
             i += 1
-            if i < l:
+            if i >= l:
                 raise Exception("dangling backslash")
             if s[i] in superchar_singles:
                 yield(superchar_singles[s[i]], True)
@@ -78,7 +76,7 @@ def superchars(s, append_chars=[]):
                 yield(chr(int(s[i+1:i+5], 16)), True)
                 i += 5
             elif s[i] >= '0' and s[i] <= '9':
-                yield(chr(int(s[i+1:i+4], 8)), True)
+                yield(chr(int(s[i:i+3], 8)), True)
                 i += 3
             else:
                 yield (s[i], True)
@@ -119,7 +117,7 @@ class ConstantSet(object):
     def value2name(self, value):
         "reverse mapping -- value to short name"
         if value in self._reverse:
-            return(self._reverse(value))
+            return(self._reverse[value])
         else:
             return(repr(value))
 
@@ -182,5 +180,91 @@ class ParseCtx(object):
         if as4 is not None:
             self.as4 = bool(as4)
 
-    # XXX methods to access, move parse position
+    def __repr__(self):
+        return("ParseCtx("+repr(self.buf[self.pos:self.end])+")")
+    def __bytes__(self):
+        return(self.buf[self.pos:self.end])
+    def __bool__(self):
+        return(self.end > self.pos)
+    def __len__(self):
+        return(self.end - self.pos)
+    def __iter__(self):
+        """Iterator which consumes the contents of the ParseCtx"""
+        while self.pos < self.end:
+            got = self.buf[self.pos]
+            self.pos += 1
+            yield got
+    def get_byte(self):
+        """Consume and return one byte, as an integer 0-255"""
+        if self.pos < self.end:
+            got = self.buf[self.pos]
+            self.pos += 1
+            return got
+        else:
+            raise KeyError("no more bytes")
+    def get_bytes(self, count):
+        """Consume and return some number of bytes, as new ParseCtx"""
+        if self.pos + count > self.end:
+            raise KeyError("not enough more bytes ("+str(count)+" requested)")
+        else:
+            got = ParseCtx(self, end = count)
+            self.pos += count
+            return got
+    def get_be2(self):
+        """Consume and return a two-byte big endian unsigned integer"""
+        if self.pos + 2 > self.end:
+            raise KeyError("not enough more bytes (2 requested)")
+        else:
+            got = (self.buf[self.pos] << 8) | self.buf[self.pos + 1]
+            self.pos += 2
+            return got
+    def get_be4(self):
+        """Consume and return a four-byte big endian unsigned integer"""
+        if self.pos + 4 > self.end:
+            raise KeyError("not enough more bytes (4 requested)")
+        else:
+            got = ((self.buf[self.pos] << 24) |
+                   (self.buf[self.pos] << 16) |
+                   (self.buf[self.pos] << 8) |
+                   (self.buf[self.pos]))
+            self.pos += 4
+            return got
+    def dump(self):
+        """Dump internal structure of ParseCtx, for debugging."""
+        return("ParseCtx{"+str(self.buf)+
+               "["+str(self.pos)+":"+str(self.end)+"],as4="+
+               str(self.as4)+"}")
+    def _reindex(self, idx):
+        """Convert an index to go within self.buf"""
+        if type(idx) is not int:
+            raise TypeError("ParseCtx indices must be integers")
+        elif self.pos + idx >= self.end or self.end + idx < self.pos:
+            raise IndexError("ParseCtx index out of range")
+        elif idx < 0:
+            return(self.end + self.key)
+        else:
+            return(self.pos + self.key)
+    def __getitem__(self, key):
+        """get byte at index or slice"""
+        if type(key) is slice:
+            if key.step is not None:
+                # Not implementing this, it wouldn't make sense to use.
+                raise TypeError("ParseCtx doesn't do extended slicing")
+            else:
+                if key.start is None:
+                    start = self.pos
+                else:
+                    start = self._reindex(key.start)
+                if key.stop is None:
+                    stop = self.end
+                else:
+                    stop = self._reindex(key.stop)
+                return(self.buf[start:stop])
+            # This code is a little inconsistent with other
+            # implementations in the slice case; it won't tolerate
+            # "stop" being out of range.  But that's probably not too
+            # important for the limited uses ParseCtx() will be put to.
+        else:
+            # single index
+            return(self.buf[self._reindex(key)])
 
