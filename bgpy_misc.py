@@ -275,3 +275,5 @@ class ParseCtx(object):
         else:
             # single index
             return(self.buf[self._reindex(key)])
+    # XXX I'm not sure I'm going to use the 'as4' flag here, if I don't in the end, maybe get rid of it
+

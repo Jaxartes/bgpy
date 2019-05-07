@@ -141,5 +141,21 @@ err_sub_rfrmsg = ConstantSet(
     ( "msglen", "Invalid Message Length",       1 ), # RFC 7313
 )
 
+## ## ## BGP Configuration-like State
+
+class BGPEnv(object):
+    """A handful of settings that impact how BGP handles things:
+        as4 -- whether 4 byte AS numbers are in use
+    """
+    def __init__(self, cpy = None):
+        if cpy is None:
+            self.as4 = False
+        else:
+            self.as4 = cpy.as4
+
 ## ## ## BGP Messages
+
+def get_bgp_msg(sok):
+    # Retrieve a BGP message from a socket, and return it.
+    XXX gets it in binary form & then calls something else to parse it
 

@@ -4,13 +4,17 @@
 It provides a limited BGP tester that can connect to a BGP peer, exchange
 open and keepalive messages as required, and perform other operations
 (chiefly running "canned programmes" that might send BGP routes) as
-requested on stdin."""
+requested on stdin.
+
+This will probably only work on POSIX systems (such as Linux or macOS)
+because of its dependence on 'select'."""
 
 ## ## ## Top matter
 
 import socket
 import sys
 import time
+import select
 import bgpy_misc as bmisc
 import bgpy_repr as brepr
 
@@ -240,6 +244,7 @@ class Client(object):
 ## ## ## outer program skeleton
 
 # command line parameters
+# XXX enhance the command line to use more extensible name=value form
 def usage():
     print("USAGE: python3 bgpy_client.py local-as router-id peer-address",
           file=sys.stderr)
