@@ -277,3 +277,18 @@ class ParseCtx(object):
             return(self.buf[self._reindex(key)])
     # XXX I'm not sure I'm going to use the 'as4' flag here, if I don't in the end, maybe get rid of it
 
+def ba_put_be2(self, ba, x):
+    """Append a 2 byte big endian unsigned integer to a bytearray"""
+    if x < 0 or x > 65535:
+        raise ValueError("value must be a 16 bit unsigned integer")
+    ba.append(x >> 8)
+    ba.append(x & 255)
+
+def ba_put_be4(self, ba, x):
+    """Append a 4 byte big endian unsigned integer to a bytearray"""
+    if x < 0 or x > 4294967295:
+        raise ValueError("value must be a 32 bit unsigned integer")
+    ba.append(x >> 24)
+    ba.append((x >> 16) & 255)
+    ba.append((x >> 8) & 255)
+    ba.append(x & 255)

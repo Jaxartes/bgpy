@@ -13,7 +13,7 @@ of the protocol.
 ## ## ## Top matter
 
 import bgpy_misc as bmisc
-from bgpy_misc import ConstantSet
+from bgpy_misc import ConstantSet, ParseCtx
 
 ## ## ## Constants
 
@@ -141,6 +141,9 @@ err_sub_rfrmsg = ConstantSet(
     ( "msglen", "Invalid Message Length",       1 ), # RFC 7313
 )
 
+# The all-ones marker defined in RFC 4271 4.1
+BGP_marker = bytes(b"\xff" * 16)
+
 ## ## ## BGP Configuration-like State
 
 class BGPEnv(object):
@@ -153,10 +156,92 @@ class BGPEnv(object):
         else:
             self.as4 = cpy.as4
 
+## ## ## Representing "things" in BGP
+
+class BGPThing(object):
+    """Base class for things that are transmitted/received in the BGP
+    protocol.  There will be subclasses for BGP messages, attributes, etc.
+
+    For every subclass you can:
+        query the kind of thing it is:
+            thing.bgp_thing_type()
+            will return a class, which might not actually equal type(thing)
+            but should be sort of the highest meaningful applicable entry in the
+            subclass heirarchy
+        query the kind of thing it is, in human readable string form:
+            thing.bgp_thing_type_str()
+            will be like thing.bgp_thing_type() but give a short string
+        query the raw binary representation of the thing:
+            thing.raw; type ParseCtx
+        get a string representation of the thing:
+            str(thing)
+            should be reasonably precise and detailed but not too long
+            winded; both human and machine readable, more or less
+    """
+    __slots__ = ["raw"]
+    def __init__(self, env, raw):
+        """Parse from a specified BGPEnv and raw binary data."""
+        self.raw = raw
+    def bgp_thing_type(self): return(BGPThing)
+    def bgp_thing_type_str(self): return("?")
+    def __str__(self):
+        """Default string representation for a BGPThing: kind(raw=raw)"""
+        hx = ".".join(map("{:02x}".format, self.raw))
+        return(self.bgp_thing_type_str() + "(raw=" + hx + ")")
+
 ## ## ## BGP Messages
 
-def get_bgp_msg(sok):
-    # Retrieve a BGP message from a socket, and return it.
-    # XXX gets it in binary form & then calls something else to parse it
-    pass
+class BGPMessage(BGPThing):
+    """A BGP message -- see RFC 4271 4.1."""
+    __slots__ = ["type", "payload"]
+    def __init__(self, env, *args):
+        """Parse from a specified BGPEnv and additional information that
+        might be just raw binary data (to parse) or type and payload
+        (itself raw)"""
+        if len(args) == 1:
+            # raw binary data; parse it
+            self.raw = ParseCtx(args[0])
+            pc = ParseCtx(self.raw)
+            if len(self.raw) < 19:
+                # header takes up 19 bytes
+                raise Exception("BGPMessage too short for complete header")
+            m = pc.get_bytes(16)
+            if m != BGP_marker:
+                # RFC 4271 4.1 says this must be 16 bytes of all-ones
+                raise Exception("BGPMessage bad marker field")
+            l = pc.get_be2()
+            if l < 19:
+                # restriction specified in RFC 4271 4.1
+                raise Exception("BGPMessage too short for complete header")
+            if l > 4096:
+                # restriction specified in RFC 4271 4.1
+                raise Exception("BGPMessage too long")
+            if l != len(self.raw):
+                raise Exception("BGPMessage length mismatch (internal)")
+            self.type = pc.get_byte()
+            self.payload = pc
+        elif len(args) == 2 and type(args[0]) is int:
+            # type and payload; build message out of it
+            self.type = args[0]
+            self.payload = args[1]
+            l = len(self.payload) + 19 # length field
+            if l > 4096:
+                # restriction specified in RFC 4271 4.1
+                raise Exception("BGPMessage too long")
+            if self.type < 0 or self.type > 255:
+                # it has to fit in a byte
+                raise Exception("BGPMessage type out of range (internal)")
+            ba = bytearray()
+            bmisc.ba_put_be2(ba, l)
+            bmisc.append(self.type)
+            bmisc.append(self.payload)
+            self.raw = ParseCtx(bytes(ba))
+        else:
+            raise Exception("BGPMessage() bad parameters")
+    def bgp_thing_type(self): return(BGPMessage)
+    def bgp_thing_type_str(self): return("msg")
+    def __str__(self):
+        hx = ".".join(map("{:02x}".format, self.payload))
+        return("msg(type=" + msg_type.value2name(self.type) +
+               ", pld=" + hx + ")")
 
