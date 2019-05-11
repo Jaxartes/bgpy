@@ -157,5 +157,6 @@ class BGPEnv(object):
 
 def get_bgp_msg(sok):
     # Retrieve a BGP message from a socket, and return it.
-    XXX gets it in binary form & then calls something else to parse it
+    # XXX gets it in binary form & then calls something else to parse it
+    pass
 

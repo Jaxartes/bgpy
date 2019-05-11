@@ -239,47 +239,106 @@ class Client(object):
     def get_output_channel(self):
         return(self.outfile)
 
-    # XXX much more
+    # XXX much more in this class 'Client'
+
+## ## ## Command line parameter handling
+
+class EqualParm(object):
+    """A command line parameter of the form name=value."""
+
+    def __init__(self,
+                 desc,                      # descriptive text
+                 defv,                      # default value
+                 pars = None                # function to parse & validate input
+                ):
+        self.desc = desc
+        self.pars = pars
+        self.valu = self.defv = self.parse(defv)
+
+    def parse(self, s):
+        """Parse a value for this parameter."""
+        if self.pars is None:       return(s)
+        else:                       return((self.pars)(self, s))
+
+def EqualParm_parse_i32(ep, s):
+    """Parse a 32-bit unsigned integer in s as part of EqualParm ep
+    and return it."""
+    try:
+        x = int(s)
+        if x < 0 or x > 4294967295:
+            raise Exception()
+        return(x)
+    except:
+        raise Exception(ep.desc+" must be integer in 0-4294967295 range")
+
+def EqualParm_parse_i32_ip(ep, s):
+    """Parse something that might be represented as a 32-bit unsigned integer
+    or as an IPv4 address and return it (as an integer)."""
+    try:
+        return(EqualParm_parse_i32(ep, s))
+    except: pass
+    try:
+        bs = socket.inet_aton(s)
+            # Apparently, socket.inet_aton() tolerates some things I wouldn't
+            # expect it to.  Ah well.
+        x = 0
+        for b in bs:
+            x = (x << 8) + b
+        return(x)
+    except: pass
+    raise Exception(ep.desc+" must be either an IPv4 address in dotted"+
+                    " quad format, or an integer in 0-4294967295 range.")
+
+# dictionary of name=value parameters, will be filled in with their values
+equal_parms = {
+    "local-as":
+        EqualParm("Local AS Number", "1", EqualParm_parse_i32),
+    "las": "local-as",
+    "router-id":
+        EqualParm("Router ID", "0.0.0.1", EqualParm_parse_i32_ip),
+    "rtrid": "router-id",
+}
 
 ## ## ## outer program skeleton
 
 # command line parameters
-# XXX enhance the command line to use more extensible name=value form
 def usage():
-    print("USAGE: python3 bgpy_client.py local-as router-id peer-address",
+    print("USAGE: python3 bgpy_client.py [name=value...] peer-address",
           file=sys.stderr)
+    print("Named parameters recognized", file=sys.stderr)
+    ns = list(equal_parms.keys())
+    ns.sort()
+    for n in ns:
+        if type(equal_parms[n]) is str:
+            print("\t"+n+": synonym for \""+equal_parms[n]+"\"",
+                  file=sys.stderr)
+        else:
+            print("\t"+n+": "+equal_parms[n].desc, file=sys.stderr)
     sys.exit(1)
 
-if len(sys.argv) != 4:
+if len(sys.argv) < 2:
     usage()
 
-try:
-    local_as = int(sys.argv[1])
-    if local_as < 0 or local_as > 4294967295:
-        raise Exception()
-except:
-    print("local AS number must be integer in 0-4294967295 range",
-          file=sys.stderr)
-    usage()
-
-try:
-    router_id = int(sys.argv[2])
-    if router_id < 0 or router_id > 4294967295:
-        raise Exception()
-except:
+for a in sys.argv[1:-1]:
+    # a name=value pair, match against equal_parms and parse
     try:
-        router_id_bytes = socket.inet_aton(sys.argv[2])
-        router_id = 0
-        for router_id_byte in router_id_bytes:
-            router_id = (router_id << 8) + router_id_byte
-    except:
-        print("router ID must be either an IPv4 address in dotted quad\n"+
-              "format, or an integer in 0-4294967295 range.", file=sys.stderr)
+        (n, v) = a.split("=", 1)
+    except: usage()
+    # handle alias if one
+    n0 = n
+    if n in equal_parms and type(equal_parms[n]) is str:
+        n = equal_parms[n]
+    # is this even a recognized parameter?
+    if n not in equal_parms:
+        print("Unknown parameter name \""+n0+"\"", file=sys.stderr)
         usage()
-    # Apparently, socket.inet_aton() tolerates some things I wouldn't
-    # expect it to.  Ah well.
+    try:
+        equal_parms[n].value = equal_parms[n].parse(v)
+    except Exception as e:
+        print(str(e), file=sys.stderr)
+        usage()
 
-peer_addr = sys.argv[3]
+peer_addr = sys.argv[-1]
 
 # open a connection
 
@@ -289,12 +348,15 @@ sok = socket.socket(socket.AF_INET, socket.SOCK_STREAM,
                     socket.IPPROTO_TCP)
 try:
     sok.connect((peer_addr, brepr.BGP_TCP_PORT))
+        # XXX add an optional parameter for remote TCP port
 except Exception as e:
     print("Failed to connect to "+peer_addr+" port "+
           str(bmisc.BGP_TCP_PORT)+": "+str(e), file=sys.stderr)
 
 bmisc.stamprint(sys.stderr, time.time(), "Connected.")
-c = Client(sok = sok, local_as = local_as, router_id = router_id)
+c = Client(sok = sok,
+           local_as = equal_parms["local-as"].value,
+           router_id = equal_parms["router-id"].value)
 
 # and then do... stuff
 
