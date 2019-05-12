@@ -93,7 +93,7 @@ def stamprint(fp, t, msg):
     ts = int(t)
     tu = round((t - ts) * 1e+6)
     print("{}.{:06d} {}".
-            format(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(tu)),
+            format(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(ts)),
                    tu, msg), file=fp)
 
 class ConstantSet(object):
@@ -160,7 +160,8 @@ class ParseCtx(object):
             self.end = obj.end
             self.as4 = obj.as4
         else:
-            raise(TypeError("ParseCtx takes bytes or ParseCtx"))
+            raise(TypeError("ParseCtx takes bytes or ParseCtx not "+
+                            str(type(obj))))
 
         # Now, apply the optional parameters
         if end is not None:

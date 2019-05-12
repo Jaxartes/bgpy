@@ -6,8 +6,7 @@ open and keepalive messages as required, and perform other operations
 (chiefly running "canned programmes" that might send BGP routes) as
 requested on stdin.
 
-This will probably only work on POSIX systems (such as Linux or macOS)
-because of its dependence on 'select'."""
+This will probably not work on Windows because of how it uses 'select'."""
 
 ## ## ## Top matter
 
@@ -17,6 +16,7 @@ import time
 import select
 import bgpy_misc as bmisc
 import bgpy_repr as brepr
+import bgpy_oper as boper
 
 ## ## ## Command interface on stdin
 
@@ -38,7 +38,7 @@ class Commanding(object):
         self.programme_handlers = dict()
         self.programme_iterators = dict()
         self.programme_iterator_times = dict()
-        self.bgpy_client = dict()
+        self.bgpy_client = bgpy_client
 
     def register_programme(self, pname, phandler):
         """Register a 'canned programme', with the given name, and a handler.
@@ -155,9 +155,11 @@ class Commanding(object):
             print("Unknown command '"+repr(word[0])+"'",
                   file=self.bgpy_client.get_error_channel())
             return
+
     def invoke(self, now):
         """If any pending programme is to be run before the time 'now',
-        run one; return the time in seconds before the next is to run."""
+        run one; return the time in seconds before the next is to run, or
+        None if there isn't any."""
 
         # This could be made more scalable with a priority queue, but
         # it's not really worth it for the intended use here.
@@ -175,7 +177,7 @@ class Commanding(object):
                 except StopIteration:
                     del self.programme_iterator_times[pname]
                     del self.programme_iterators[pname]
-            if t is not None and t < time_nxt:
+            if t is not None and t < time_next:
                 time_next = t
 
         return(time_next)
@@ -223,7 +225,9 @@ class Client(object):
         if holdtime_sec > 65535:
             raise ValueError("Hold time may be no more than 65535 seconds")
 
+        self.env = brepr.BGPEnv()
         self.sok = sok
+        self.wrpsok = boper.SocketWrap(sok, self.env)
         self.router_id = router_id
         self.cmdfile = cmdfile
         self.outfile = outfile
@@ -333,7 +337,7 @@ for a in sys.argv[1:-1]:
         print("Unknown parameter name \""+n0+"\"", file=sys.stderr)
         usage()
     try:
-        equal_parms[n].value = equal_parms[n].parse(v)
+        equal_parms[n].valu = equal_parms[n].parse(v)
     except Exception as e:
         print(str(e), file=sys.stderr)
         usage()
@@ -353,11 +357,58 @@ except Exception as e:
     print("Failed to connect to "+peer_addr+" port "+
           str(bmisc.BGP_TCP_PORT)+": "+str(e), file=sys.stderr)
 
-bmisc.stamprint(sys.stderr, time.time(), "Connected.")
 c = Client(sok = sok,
-           local_as = equal_parms["local-as"].value,
-           router_id = equal_parms["router-id"].value)
+           local_as = equal_parms["local-as"].valu,
+           router_id = equal_parms["router-id"].valu)
+cmdi = Commanding(c)
+cmdbuf = ""
 
-# and then do... stuff
+# and then do... stuff: the main event loop
 
-# XXX do event loop
+while True:
+    # build socket lists for select()
+    rlist = []
+    wlist = []
+    xlist = []
+    if c.wrpsok.want_recv(): rlist.append(c.sok)
+    if c.wrpsok.want_send(): wlist.append(c.sok)
+
+    # Add the command interface (stdin).  Windows won't like this since it's
+    # not a socket.
+    rlist.append(sys.stdin)
+
+    # Run any pending "programmes" and figure out how long until the next
+    # scheduled event if any; this provides a timeout for select().
+    now = time.time()
+    timeo = cmdi.invoke(now)
+
+    (rlist, wlist, xlist) = select.select(rlist, wlist, xlist, timeo)
+
+    if c.sok in wlist:
+        # send some of any pending messages
+        c.wrpsok.able_send()
+    if c.sok in rlist:
+        # receive some messages
+        c.wrpsok.able_recv()
+    if sys.stdin in rlist:
+        # read a command, or part of one
+        cmdbuf += sys.stdin.read(512)
+        while True:
+            nl = cmdbuf.find("\n")
+            if nl < 0: break        # no more commands
+            try:
+                cmdi.handle_command(cmdbuf[0:nl])
+            except Exception as e:
+                print("Command failure: "+str(e), file=sys.stderr)
+            line = cmdbuf[nl:]
+    while True:
+        try:
+            msg = c.wrpsok.recv()
+        except Exception as e:
+            bmisc.stamprint(sys.stderr, time.time(),
+                            "Recv err: " + repr(e))
+        if msg == None: break       # no more messages
+        bmisc.stamprint(sys.stderr, time.time(),
+                        "Recv: " + str(msg))
+        # XXX print better than this; or maybe just change sys.stderr to sys.stdout and deal with flushing
+
