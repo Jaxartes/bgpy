@@ -68,6 +68,8 @@ class SocketWrap(object):
         if len(got):
             self.ipnd += got        # we got something: buffer it
             self.ista = True        # and it *might* be a message
+            if self.env.data_cb is not None:
+                self.env.data_cb(self, "r", got)
         else:
             # Connection has been closed; what do we do now?
             raise Exception("XXX")
@@ -76,6 +78,8 @@ class SocketWrap(object):
         sent = self.sok.send(self.opnd)
         if sent > 0:
             # we sent something, remove it from the output buffer
+            if self.env.data_cb is not None:
+                self.env.data_cb(self, "w", self.opnd[:sent])
             self.opnd = self.opnd[sent:]
         else:
             # this is a problem; what do we do about it?

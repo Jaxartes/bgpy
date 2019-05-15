@@ -149,12 +149,15 @@ BGP_marker = bytes(b"\xff" * 16)
 class BGPEnv(object):
     """A handful of settings that impact how BGP handles things:
         as4 -- whether 4 byte AS numbers are in use
+        data_cb -- callback to run when data is received or sent
     """
     def __init__(self, cpy = None):
         if cpy is None:
             self.as4 = False
+            self.data_cb = None
         else:
             self.as4 = cpy.as4
+            self.data_cb = cpy.data_cb
 
 ## ## ## Representing "things" in BGP
 

@@ -301,6 +301,8 @@ equal_parms = {
     "router-id":
         EqualParm("Router ID", "0.0.0.1", EqualParm_parse_i32_ip),
     "rtrid": "router-id",
+    "tcp-hex":
+        EqualParm("Show TCP exchanges in hex", "0", EqualParm_parse_i32),
 }
 
 ## ## ## outer program skeleton
@@ -360,6 +362,35 @@ except Exception as e:
 c = Client(sok = sok,
            local_as = equal_parms["local-as"].valu,
            router_id = equal_parms["router-id"].valu)
+if equal_parms["tcp-hex"].valu:
+    # hex dump of all data sent/received over TCP
+    tcp_hex_ipos = [0]
+    tcp_hex_opos = [0]
+
+    def tcp_hex_handler(wrpsok, rw, data):
+        if len(data) == 0: return # nothing to do
+
+        if rw is "r":   (posa, rws) = (tcp_hex_ipos, "tcp-rcv")
+        else:           (posa, rws) = (tcp_hex_opos, "tcp-snd")
+
+        bmisc.stamprint(sys.stderr, time.time(),
+                        rws+", "+str(len(data))+" bytes:")
+
+        # byte values
+        vs = list(map("{:02x}".format, data))
+
+        # padding for alignment with posa[0]
+        vs = ["  "] * (posa[0] & 15) + vs
+
+        # display as lines, 16 bytes per line, with an address prefixed to it
+        i = 0
+        for i in range(0, len(vs), 16):
+            print("{}.{:010x}: {}".format(rws, ((posa[0] & ~15) + i),
+                                          " ".join(vs[i : (i + 16)])),
+                  file=sys.stderr)
+        posa[0] += len(data)
+
+    c.env.data_cb = tcp_hex_handler
 cmdi = Commanding(c)
 cmdbuf = ""
 
