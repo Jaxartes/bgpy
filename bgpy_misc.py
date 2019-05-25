@@ -277,6 +277,12 @@ class ParseCtx(object):
             # single index
             return(self.buf[self._reindex(key)])
     # XXX I'm not sure I'm going to use the 'as4' flag here, if I don't in the end, maybe get rid of it
+    def __eq__(self, other): return(bytes(self) == bytes(other))
+    def __ne__(self, other): return(bytes(self) != bytes(other))
+    def __lt__(self, other): return(bytes(self) <  bytes(other))
+    def __gt__(self, other): return(bytes(self) >  bytes(other))
+    def __le__(self, other): return(bytes(self) <= bytes(other))
+    def __ge__(self, other): return(bytes(self) >= bytes(other))
 
 def ba_put_be2(self, ba, x):
     """Append a 2 byte big endian unsigned integer to a bytearray"""

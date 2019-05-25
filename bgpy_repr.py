@@ -14,6 +14,7 @@ of the protocol.
 
 import bgpy_misc as bmisc
 from bgpy_misc import ConstantSet, ParseCtx
+import sys
 
 ## ## ## Constants
 
@@ -211,7 +212,8 @@ class BGPMessage(BGPThing):
             m = pc.get_bytes(16)
             if m != BGP_marker:
                 # RFC 4271 4.1 says this must be 16 bytes of all-ones
-                raise Exception("BGPMessage bad marker field")
+                hx = " ".join(map("{:02x}".format, m))
+                raise Exception("BGPMessage bad marker field ("+hx+")")
             l = pc.get_be2()
             if l < 19:
                 # restriction specified in RFC 4271 4.1

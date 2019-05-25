@@ -62,7 +62,8 @@ class SocketWrap(object):
         lists for select()"""
         return(len(self.opnd) > 0)
     def able_recv(self):
-        "Called when select() indicates this socket can receive something"
+        """Called when select() indicates this socket can receive something.
+        Returns True normally, False if socket closed."""
         get = 8 # XXX change this to something bigger after testing
         got = self.sok.recv(get)
         if len(got):
@@ -71,8 +72,9 @@ class SocketWrap(object):
             if self.env.data_cb is not None:
                 self.env.data_cb(self, "r", got)
         else:
-            # Connection has been closed; what do we do now?
-            raise Exception("XXX")
+            # Connection has been closed
+            return(False)
+        return(True)
     def able_send(self):
         "Called when select() indicates this socket can send something"
         sent = self.sok.send(self.opnd)

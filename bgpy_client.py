@@ -420,7 +420,10 @@ while True:
         c.wrpsok.able_send()
     if c.sok in rlist:
         # receive some messages
-        c.wrpsok.able_recv()
+        if not c.wrpsok.able_recv():
+            bmisc.stamprint(sys.stderr, time.time(),
+                            "Connection was closed")
+            break
     if sys.stdin in rlist:
         # read a command, or part of one
         cmdbuf += sys.stdin.read(512)
