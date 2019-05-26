@@ -36,6 +36,13 @@ bgp_ver = ConstantSet(
     FOUR            = 4,    # BGP version 4
 )
 
+# BGP OPEN Optional Parameter Types -- see
+# https://www.iana.org/assignments/bgp-parameters/bgp-parameters-11.csv
+bgp_parms = ConstantSet(
+    Authentication      = 1,    # (deprecated) RFC 4271, RFC 5492
+    Capabilities        = 2,    # RFC 5492
+)
+
 # BGP Path Attributes -- see RFC 4271, others, also
 # https://www.iana.org/assignments/bgp-parameters/bgp-parameters-2.csv
 attr_code = ConstantSet(
@@ -238,8 +245,8 @@ class BGPMessage(BGPThing):
                 raise Exception("BGPMessage type out of range (internal)")
             ba = bytearray()
             bmisc.ba_put_be2(ba, l)
-            bmisc.append(self.type)
-            bmisc.append(self.payload)
+            ba.append(self.type)
+            ba.append(self.payload)
             self.raw = ParseCtx(bytes(ba))
         else:
             raise Exception("BGPMessage() bad parameters")
@@ -249,4 +256,94 @@ class BGPMessage(BGPThing):
         hx = ".".join(map("{:02x}".format, self.payload))
         return("msg(type=" + msg_type.value2name(self.type) +
                ", pld=" + hx + ")")
+
+class BGPOpen(BGPMessage):
+    """A BGP open message -- see RFC 4271 4.2."""
+    __slots__ = ["version", "my_as", "hold_time",
+                 "peer_id", "parms"]
+    def __init__(self, env, *args):
+        """Parse a BGP Open."""
+        if len(args) == 1 and type(args[0]) is BGPMessage:
+            # A BGPMessage; further parse its payload field.
+            # Intentionally doesn't check its type.
+            basic_len = 10
+
+            # Fields in BGPThing and BGPMessage
+            self.raw = msg.raw
+            self.type = msg.type
+            self.payload = msg.payload
+
+            # Fixed-length parts of the payload
+            pc = ParseCtx(self.payload)
+            if len(pc) < basic_len:
+                raise Exception("BGPOpen too short for complete message")
+            self.version = pc.get_byte()
+            self.my_as = pc.get_be2()
+            self.hold_time = pc.get_be2()
+            self.peer_id = pc.get_bytes(4)
+
+            # Variable-length parts of the payload: "Optional Parameters"
+            parmslen = pc.get_byte()
+            if parmslen != len(pc):
+                raise Exception("BGPOpen optional parameters length mismatch")
+            self.parms = []
+            while len(pc):
+                if len(pc) < 2:
+                    raise Exception("Truncated option in BGPOpen")
+                pt = pc.get_byte()
+                pl = pc.get_byte()
+                if len(pc) < pl:
+                    raise Exception("Truncated option in BGPOpen")
+                self.parms.append(BGPParameter(type=pt,
+                                               value=pc.get_bytes(pl)))
+        elif len(args) == 5:
+            # By fields (version, my_as, hold_time, peer_id, parms).
+            # Given that, format the raw stuff.
+            (self.version, self.my_as, self.hold_time, self.peer_id,
+             self.parms) = args
+            ba = bytearray()
+            ba.append(self.version)
+            bmisc.ba_put_be2(ba, self.my_as)
+            bmisc.ba_put_be2(ba, self.hold_time)
+            ba.append(self.peer_id[0])
+            ba.append(self.peer_id[0])
+            ba.append(self.peer_id[0])
+            ba.append(self.peer_id[0])
+            pl = 0
+            for parm in self.parms: pl += len(parm.raw)
+            if pl > 255:
+                raise Error("Optional parameters too long")
+            ba.append(pl)
+            for parm in self.parms: ba += bytes(parm.raw)
+        else:
+            raise Exception("BGPOpen() bad parameters")
+    def __str__(self):
+        return("msg(type=" + msg_type.value2name(self.type) +
+               ", version=" + str(self.version) +
+               ", my_as=" + str(self.my_as) +
+               ", hold_time=" + str(self.hold_time) +
+               ", peer_id=" + (".".join(map(str, self.peer_id))) +")")
+
+class BGPUpdate(BGPMessage):
+    """A BGP update message -- see RFC 4271 4.3."""
+    pass # XXX implement for real
+
+class BGPKeepalive(BGPMessage):
+    """A BGP keepalive message -- see RFC 4271 4.4."""
+    pass # XXX implement for real
+
+class BGPNotification(BGPMessage):
+    """A BGP notification message -- see RFC 4271 4.5."""
+    pass # XXX implement for real
+
+class BGPRouteRefreshMsg(BGPMessage):
+    """A BGP route refresh message -- see RFC 2918 3."""
+    pass # XXX implement for real
+
+## ## ## BGP Parameters (like capabilities)
+
+class BGPParameter(BGPThing):
+    """A BGP optional parameter as found in the open message --
+    see RFC 4271 4.2."""
+    pass # XXX implement for real
 
