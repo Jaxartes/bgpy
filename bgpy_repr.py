@@ -266,6 +266,7 @@ class BGPOpen(BGPMessage):
         if len(args) == 1 and type(args[0]) is BGPMessage:
             # A BGPMessage; further parse its payload field.
             # Intentionally doesn't check its type.
+            msg = args[0]
             basic_len = 10
 
             # Fields in BGPThing and BGPMessage
@@ -315,6 +316,7 @@ class BGPOpen(BGPMessage):
                 raise Error("Optional parameters too long")
             ba.append(pl)
             for parm in self.parms: ba += bytes(parm.raw)
+            # XXX now build the lower level parts using ba
         else:
             raise Exception("BGPOpen() bad parameters")
     def __str__(self):
@@ -326,7 +328,115 @@ class BGPOpen(BGPMessage):
 
 class BGPUpdate(BGPMessage):
     """A BGP update message -- see RFC 4271 4.3."""
-    pass # XXX implement for real
+    __slots__ = ["withdrawn", "attrs", "nlri"]
+    def __init__(self, env, *args):
+        """Parse a BGP Update."""
+        if len(args) == 1 and type(args[0]) is BGPMessage:
+            # A BGPMessage; further parse its payload field.
+            # Intentionally doesn't check its type.
+            msg = args[0]
+
+            # Fields in BGPThing and BGPMessage
+            self.raw = msg.raw
+            self.type = msg.type
+            self.payload = msg.payload
+
+            # The parts of the payload; first part, withdrawn routes
+            pc = ParseCtx(self.payload)
+            if len(pc) < 2:
+                raise Exception("BGPUpdate bad length"+
+                                " (withdrawn length part truncated)")
+            withlen = pc.get_be2()
+            if len(pc) < withlen:
+                raise Exception("BGPUpdate bad length"+
+                                " (withdrawn part truncated)")
+            wpc = pc.get_bytes(withlen)
+            self.withdrawn = BGPUpdate.parse_routes(env, "withdrawn part", wpc)
+
+            # Next part, path attributes
+            if len(pc) < 2:
+                raise Exception("BGPUpdate bad length"+
+                                " (attribute length part truncated)")
+            attlen = pc.get_be2()
+            if len(pc) < attlen:
+                raise Exception("BGPUpdate bad length"+
+                                " (attribute part truncated)")
+            apc = pc.get_bytes(attlen)
+            self.attrs = BGPUpdate.parse_attrs(env, apc)
+
+            # Next part, Network Layer Reachability Information (NLRI)
+            # taking up the rest of the message.
+            self.nlri = BGPUpdate.parse_routes(env, "nlri part", pc)
+        elif len(args) == 3:
+            # By fields (withdrawn, attrs, nlri).  Given that, format
+            # the raw stuff.
+            (self.withdrawn, self.attrs, self.nlri) = args
+            ba = bytearray()
+            baw = bytearray()
+            BGPUpdate.format_routes(env, baw, self.withdrawn)
+            if len(baw) > 65535:
+                raise Exception("BGPUpdate too many withdrawn routes to fit")
+            bmisc.ba_put_be2(ba, len(baw))
+            ba += baw
+            baa = bytearray()
+            BGPUpdate.format_attrs(env, baa, self.attrs)
+            bmisc.ba_put_be2(ba, len(baa))
+            ba += baa
+            ban = bytearray()
+            BGPUpdate.format_routes(env, ban, self.nlri)
+            if len(ban) > 65535:
+                raise Exception("BGPUpdate too many advertised routes to fit")
+            bmisc.ba_put_be2(ba, len(ban))
+            ba += ban
+            # XXX now build the lower level parts using ba
+        else:
+            raise Exception("BGPUpdate() bad parameters")
+    def __str__(self):
+        return("msg(type=" + msg_type.value2name(self.type) +
+                ", wd=["+
+                (", ".join(map(str, self.withdrawn)))+
+                "], at=["+
+                (", ".join(map(str, self.attrs)))+
+                "], nlri=["+
+                (", ".join(map(str, self.nlri)))+
+                "])")
+    @staticmethod
+    def parse_routes(env, inwhat, pc):
+        """Parse a collection of routes into a list, from the "Withdrawn Routes"
+        and "Network Layer Reachability Information" fields of the Update
+        message.  Returns a list of what it found."""
+        res = []
+        while len(pc):
+            # length of the prefix in bits; it's padded to bytes
+            nbits = pc.get_byte()
+            if nbits > 32:
+                raise Exception("Impossible mask length > 32: "+str(nbits))
+            # see about getting that value out
+            nbytes = (ml + 7) >> 3
+            if len(pc) < nbytes:
+                raise Exception("Truncated address in " + inwhat +
+                                " in BGPUpdate")
+            bs = list(pc.get_bytes(nbytes))
+            # mask out padding bits in the last byte, if any
+            if nbits & 7:
+                bs[-1] &= 254 << (7 - (nbits & 7))
+            # and record that in 'res'
+            res.append(IPv4Prefix(bytes(bs), nbits))
+            # XXX somewhere define new class IPv4Prefix() used here
+        return(res):
+    @staticmethod
+    def format_routes(env, ba, rtes):
+        """Format a collection of routes rtes into a bytearray ba."""
+        XXX
+    @staticmethod
+    def parse_attrs(env, pc):
+        """Parse a collection of attributes into a list, from the
+        "Path Attributes" field of the Update message."""
+        XXX
+    @staticmethod
+    def format_attrs(env, ba, attrs):
+        """Format a collection of attributes attrs into a bytearray ba."""
+        XXX
 
 class BGPKeepalive(BGPMessage):
     """A BGP keepalive message -- see RFC 4271 4.4."""
