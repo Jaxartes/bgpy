@@ -183,7 +183,7 @@ class BGPThing(object):
             thing.bgp_thing_type_str()
             will be like thing.bgp_thing_type() but give a short string
         query the raw binary representation of the thing:
-            thing.raw; type ParseCtx
+            thing.raw; type bytes
         get a string representation of the thing:
             str(thing)
             should be reasonably precise and detailed but not too long
@@ -192,13 +192,60 @@ class BGPThing(object):
     __slots__ = ["raw"]
     def __init__(self, env, raw):
         """Parse from a specified BGPEnv and raw binary data."""
-        self.raw = raw
+        self.raw = bytes(raw)
     def bgp_thing_type(self): return(BGPThing)
     def bgp_thing_type_str(self): return("?")
     def __str__(self):
         """Default string representation for a BGPThing: kind(raw=raw)"""
         hx = ".".join(map("{:02x}".format, self.raw))
         return(self.bgp_thing_type_str() + "(raw=" + hx + ")")
+
+## ## ## Addresses
+
+class IPv4Prefix(BGPThing):
+    """An IPv4 address range as found in BGP update messages.
+    Contains up to 4 bytes of address, and a masklength (number of bits)."""
+    __slots__ = ["pfx", "ml"]
+    def __init__(self, *args):
+        """Initialize either from raw byte data or a prefix & masklen."""
+        if len(args) == 1:
+            # raw binary data; parse it
+            BGPThing.__init__(self, args[0])
+            pc = ParseCtx(self.raw)
+            if len(pc) < 1:
+                raise Exception("too short to be real")
+            self.ml = pc.get_byte()
+            nbytes = (self.ml + 7) >> 3
+            if len(pc) != nbytes:
+                raise Exception("IPv4Prefix bad length, " +
+                                str(len(pc)) + " bytes to represent " +
+                                str(self.ml) + " bits.")
+            self.pfx = bytes(pc)
+        elif len(args) == 2:
+            # prefix & masklen; store it
+            self.pfx = bytes(args[0])
+            self.ml = int(args[1])
+            if self.ml < 0 or self.ml > 32:
+                raise Exception("mask length "+ str(self.ml) + " out of range")
+            # sanitize the length
+            nbytes = (self.ml + 7) >> 3
+            if len(self.pfx) < nbytes:
+                self.pfx += bytes(nbytes - len(self.pfx))
+            elif len(self.pfx) > nbytes:
+                self.pfx = self.pfx[0:nbytes]
+            # build raw format
+            ba = bytearray()
+            ba.append(self.ml)
+            ba += self.pfx
+            BGPThing.__init__(self, ParseCtx(ba))
+        else:
+            raise Exception("IPv4Prefix() bad parameters")
+    def bgp_thing_type(self): return(IPv4Prefix)
+    def bgp_thing_type_str(self): return("v4pfx")
+    def __str__(self):
+        octets = list(self.pfx)
+        while len(octets) < 4: octets.append(0)
+        return(".".join(map(str, octets)) + "/" + str(self.ml))
 
 ## ## ## BGP Messages
 
@@ -211,9 +258,9 @@ class BGPMessage(BGPThing):
         (itself raw)"""
         if len(args) == 1:
             # raw binary data; parse it
-            self.raw = ParseCtx(args[0])
+            BGPThing.__init__(self, args[0])
             pc = ParseCtx(self.raw)
-            if len(self.raw) < 19:
+            if len(pc) < 19:
                 # header takes up 19 bytes
                 raise Exception("BGPMessage too short for complete header")
             m = pc.get_bytes(16)
@@ -247,7 +294,7 @@ class BGPMessage(BGPThing):
             bmisc.ba_put_be2(ba, l)
             ba.append(self.type)
             ba.append(self.payload)
-            self.raw = ParseCtx(bytes(ba))
+            BGPThing.__init__(self, ba)
         else:
             raise Exception("BGPMessage() bad parameters")
     def bgp_thing_type(self): return(BGPMessage)
@@ -270,7 +317,7 @@ class BGPOpen(BGPMessage):
             basic_len = 10
 
             # Fields in BGPThing and BGPMessage
-            self.raw = msg.raw
+            BGPThing.__init__(self, msg.raw)
             self.type = msg.type
             self.payload = msg.payload
 
@@ -316,7 +363,7 @@ class BGPOpen(BGPMessage):
                 raise Error("Optional parameters too long")
             ba.append(pl)
             for parm in self.parms: ba += bytes(parm.raw)
-            # XXX now build the lower level parts using ba
+            BGPThing.__init__(self, ba)
         else:
             raise Exception("BGPOpen() bad parameters")
     def __str__(self):
@@ -337,7 +384,7 @@ class BGPUpdate(BGPMessage):
             msg = args[0]
 
             # Fields in BGPThing and BGPMessage
-            self.raw = msg.raw
+            BGPThing.__init__(self, msg.raw)
             self.type = msg.type
             self.payload = msg.payload
 
@@ -388,7 +435,7 @@ class BGPUpdate(BGPMessage):
                 raise Exception("BGPUpdate too many advertised routes to fit")
             bmisc.ba_put_be2(ba, len(ban))
             ba += ban
-            # XXX now build the lower level parts using ba
+            BGPThing.__init__(self, ba)
         else:
             raise Exception("BGPUpdate() bad parameters")
     def __str__(self):
@@ -422,12 +469,12 @@ class BGPUpdate(BGPMessage):
                 bs[-1] &= 254 << (7 - (nbits & 7))
             # and record that in 'res'
             res.append(IPv4Prefix(bytes(bs), nbits))
-            # XXX somewhere define new class IPv4Prefix() used here
         return(res):
     @staticmethod
     def format_routes(env, ba, rtes):
         """Format a collection of routes rtes into a bytearray ba."""
-        XXX
+        for rte in rtes:
+            ba += rte.raw
     @staticmethod
     def parse_attrs(env, pc):
         """Parse a collection of attributes into a list, from the
