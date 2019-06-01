@@ -2,11 +2,30 @@
 # bgpy_misc.py - begun 27 April 2019
 "Miscelleneous utility routines and classes used by bgpy."
 
-## ## ## Top matter
-
 import time
 
-## ## ## Functions
+class FlagSet(object):
+    """A set accessed as named attributes.  You can do foo.bar to check
+    if "bar" is contained in "foo"; you can add and remove it; you don't
+    have to worry about "bar" was ever defined as being in "foo"."""
+
+    def __init__(self):
+        pass
+    def __getattr__(self, name):
+        return(False)
+    def __setattr__(self, name, value):
+        if value:
+            self.__dict__[name] = True
+        elif name in self.__dict__:
+            del self.__dict__[name]
+    def __delattr__(self, name):
+        if name in self.__dict__:
+            del self.__dict__[name]
+    def add(self, name):
+        self.__dict__[name] = True
+
+# dbg -- debugging flags, used in many places in the code
+dbg = FlagSet()
 
 def supersplit(s, end_at = None):
     """Split a string into a list of words (other strings), respecting
@@ -284,14 +303,14 @@ class ParseCtx(object):
     def __le__(self, other): return(bytes(self) <= bytes(other))
     def __ge__(self, other): return(bytes(self) >= bytes(other))
 
-def ba_put_be2(self, ba, x):
+def ba_put_be2(ba, x):
     """Append a 2 byte big endian unsigned integer to a bytearray"""
     if x < 0 or x > 65535:
         raise ValueError("value must be a 16 bit unsigned integer")
     ba.append(x >> 8)
     ba.append(x & 255)
 
-def ba_put_be4(self, ba, x):
+def ba_put_be4(ba, x):
     """Append a 4 byte big endian unsigned integer to a bytearray"""
     if x < 0 or x > 4294967295:
         raise ValueError("value must be a 32 bit unsigned integer")

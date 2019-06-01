@@ -206,11 +206,11 @@ class IPv4Prefix(BGPThing):
     """An IPv4 address range as found in BGP update messages.
     Contains up to 4 bytes of address, and a masklength (number of bits)."""
     __slots__ = ["pfx", "ml"]
-    def __init__(self, *args):
+    def __init__(self, env, *args):
         """Initialize either from raw byte data or a prefix & masklen."""
         if len(args) == 1:
             # raw binary data; parse it
-            BGPThing.__init__(self, args[0])
+            BGPThing.__init__(self, env, args[0])
             pc = ParseCtx(self.raw)
             if len(pc) < 1:
                 raise Exception("too short to be real")
@@ -237,7 +237,7 @@ class IPv4Prefix(BGPThing):
             ba = bytearray()
             ba.append(self.ml)
             ba += self.pfx
-            BGPThing.__init__(self, ParseCtx(ba))
+            BGPThing.__init__(self, env, ParseCtx(ba))
         else:
             raise Exception("IPv4Prefix() bad parameters")
     def bgp_thing_type(self): return(IPv4Prefix)
@@ -258,7 +258,7 @@ class BGPMessage(BGPThing):
         (itself raw)"""
         if len(args) == 1:
             # raw binary data; parse it
-            BGPThing.__init__(self, args[0])
+            BGPThing.__init__(self, env, args[0])
             pc = ParseCtx(self.raw)
             if len(pc) < 19:
                 # header takes up 19 bytes
@@ -294,7 +294,7 @@ class BGPMessage(BGPThing):
             bmisc.ba_put_be2(ba, l)
             ba.append(self.type)
             ba.append(self.payload)
-            BGPThing.__init__(self, ba)
+            BGPThing.__init__(self, env, ba)
         else:
             raise Exception("BGPMessage() bad parameters")
     def bgp_thing_type(self): return(BGPMessage)
@@ -317,7 +317,7 @@ class BGPOpen(BGPMessage):
             basic_len = 10
 
             # Fields in BGPThing and BGPMessage
-            BGPThing.__init__(self, msg.raw)
+            BGPThing.__init__(self, env, msg.raw)
             self.type = msg.type
             self.payload = msg.payload
 
@@ -363,7 +363,7 @@ class BGPOpen(BGPMessage):
                 raise Error("Optional parameters too long")
             ba.append(pl)
             for parm in self.parms: ba += bytes(parm.raw)
-            BGPThing.__init__(self, ba)
+            BGPThing.__init__(self, env, ba)
         else:
             raise Exception("BGPOpen() bad parameters")
     def __str__(self):
@@ -384,7 +384,7 @@ class BGPUpdate(BGPMessage):
             msg = args[0]
 
             # Fields in BGPThing and BGPMessage
-            BGPThing.__init__(self, msg.raw)
+            BGPThing.__init__(self, env, msg.raw)
             self.type = msg.type
             self.payload = msg.payload
 
@@ -435,7 +435,7 @@ class BGPUpdate(BGPMessage):
                 raise Exception("BGPUpdate too many advertised routes to fit")
             bmisc.ba_put_be2(ba, len(ban))
             ba += ban
-            BGPThing.__init__(self, ba)
+            BGPThing.__init__(self, env, ba)
         else:
             raise Exception("BGPUpdate() bad parameters")
     def __str__(self):
@@ -468,8 +468,8 @@ class BGPUpdate(BGPMessage):
             if nbits & 7:
                 bs[-1] &= 254 << (7 - (nbits & 7))
             # and record that in 'res'
-            res.append(IPv4Prefix(bytes(bs), nbits))
-        return(res):
+            res.append(IPv4Prefix(bytes(bs), env, nbits))
+        return(res)
     @staticmethod
     def format_routes(env, ba, rtes):
         """Format a collection of routes rtes into a bytearray ba."""

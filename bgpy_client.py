@@ -14,6 +14,9 @@ import socket
 import sys
 import time
 import select
+from traceback import format_exc, print_exc
+
+from bgpy_misc import dbg
 import bgpy_misc as bmisc
 import bgpy_repr as brepr
 import bgpy_oper as boper
@@ -65,6 +68,8 @@ class Commanding(object):
         except Exception as e:
             print("Unable to parse command line: "+str(e),
                   file=self.bgpy_client.get_error_channel())
+            if dbg.estk:
+                print_exc(file=self.bgpy_client.get_error_channel())
             return
 
         # ignore an empty command line
@@ -320,6 +325,7 @@ def usage():
                   file=sys.stderr)
         else:
             print("\t"+n+": "+equal_parms[n].desc, file=sys.stderr)
+    print("\tdbg=flag: enable the specified debug flag 'flag'", file=sys.stderr)
     sys.exit(1)
 
 if len(sys.argv) < 2:
@@ -335,13 +341,20 @@ for a in sys.argv[1:-1]:
     if n in equal_parms and type(equal_parms[n]) is str:
         n = equal_parms[n]
     # is this even a recognized parameter?
-    if n not in equal_parms:
+    if n in equal_parms:
+        # setting listed in equal_parms
+        try:
+            equal_parms[n].valu = equal_parms[n].parse(v)
+        except Exception as e:
+            print(str(e), file=sys.stderr)
+            if dbg.estk:
+                print_exc(file=sys.stderr)
+            usage()
+    elif n == "dbg":
+        # add debug flag
+        dbg.add(v)
+    else:
         print("Unknown parameter name \""+n0+"\"", file=sys.stderr)
-        usage()
-    try:
-        equal_parms[n].valu = equal_parms[n].parse(v)
-    except Exception as e:
-        print(str(e), file=sys.stderr)
         usage()
 
 peer_addr = sys.argv[-1]
@@ -358,6 +371,8 @@ try:
 except Exception as e:
     print("Failed to connect to "+peer_addr+" port "+
           str(bmisc.BGP_TCP_PORT)+": "+str(e), file=sys.stderr)
+    if dbg.estk:
+        print_exc(file=sys.stderr)
 
 c = Client(sok = sok,
            local_as = equal_parms["local-as"].valu,
@@ -415,14 +430,15 @@ while True:
 
     (rlist, wlist, xlist) = select.select(rlist, wlist, xlist, timeo)
 
+    t = time.time()
+
     if c.sok in wlist:
         # send some of any pending messages
         c.wrpsok.able_send()
     if c.sok in rlist:
         # receive some messages
         if not c.wrpsok.able_recv():
-            bmisc.stamprint(sys.stderr, time.time(),
-                            "Connection was closed")
+            bmisc.stamprint(sys.stderr, t, "Connection was closed")
             break
     if sys.stdin in rlist:
         # read a command, or part of one
@@ -434,15 +450,19 @@ while True:
                 cmdi.handle_command(cmdbuf[0:nl])
             except Exception as e:
                 print("Command failure: "+str(e), file=sys.stderr)
+                if dbg.estk:
+                    print_exc(file=sys.stderr)
             line = cmdbuf[nl:]
     while True:
         try:
             msg = c.wrpsok.recv()
         except Exception as e:
-            bmisc.stamprint(sys.stderr, time.time(),
-                            "Recv err: " + repr(e))
+            t = time.time()
+            bmisc.stamprint(sys.stderr, t, "Recv err: " + repr(e))
+            if dbg.estk:
+                for line in format_exc().split("\n"):
+                    if line is not "":
+                        bmisc.stamprint(sys.stderr, t, "    " + line)
         if msg == None: break       # no more messages
-        bmisc.stamprint(sys.stderr, time.time(),
-                        "Recv: " + str(msg))
-        # XXX print better than this; or maybe just change sys.stderr to sys.stdout and deal with flushing
+        bmisc.stamprint(sys.stderr, t, "Recv: " + str(msg))
 
