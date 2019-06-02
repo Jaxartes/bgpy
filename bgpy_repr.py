@@ -73,6 +73,18 @@ attr_code = ConstantSet(
     ATTR_SET            = 128,  # RFC 6368
 )
 
+# BGP Path Attribute flags -- see RFC 4271.
+attr_flag = ConstantSet(
+    Optional            = 0x80, # RFC 4271 4.3 - 1 = attribute is optional
+                                #                0 = attribute is well-known
+    Transitive          = 0x40, # RFC 4271 4.3 - 1 = attribute is transitive
+                                #                0 = attribute is non-transitive
+    Partial             = 0x20, # RFC 4271 4.3 - 1 = information is partial
+                                                 0 = information is complete
+    Extended_Length     = 0x10, # RFC 4271 4.3 - 1 = two byte length
+                                                 0 = one byte length
+)
+
 # BGP Error Codes -- see RFC 4271, also
 # https://www.iana.org/assignments/bgp-parameters/bgp-parameters-3.csv
 err_code = ConstantSet(
@@ -304,6 +316,8 @@ class BGPMessage(BGPThing):
         return("msg(type=" + msg_type.value2name(self.type) +
                ", pld=" + hx + ")")
 
+# XXX once all the BGPMessage subclasses are implemented, actually use them
+
 class BGPOpen(BGPMessage):
     """A BGP open message -- see RFC 4271 4.2."""
     __slots__ = ["version", "my_as", "hold_time",
@@ -354,16 +368,16 @@ class BGPOpen(BGPMessage):
             bmisc.ba_put_be2(ba, self.my_as)
             bmisc.ba_put_be2(ba, self.hold_time)
             ba.append(self.peer_id[0])
-            ba.append(self.peer_id[0])
-            ba.append(self.peer_id[0])
-            ba.append(self.peer_id[0])
+            ba.append(self.peer_id[1])
+            ba.append(self.peer_id[2])
+            ba.append(self.peer_id[3])
             pl = 0
             for parm in self.parms: pl += len(parm.raw)
             if pl > 255:
                 raise Error("Optional parameters too long")
             ba.append(pl)
             for parm in self.parms: ba += bytes(parm.raw)
-            BGPThing.__init__(self, env, ba)
+            BGPMessage.__init__(self, env, msg_type.OPEN, ba)
         else:
             raise Exception("BGPOpen() bad parameters")
     def __str__(self):
@@ -427,6 +441,8 @@ class BGPUpdate(BGPMessage):
             ba += baw
             baa = bytearray()
             BGPUpdate.format_attrs(env, baa, self.attrs)
+            if len(baa) > 65535:
+                raise Exception("BGPUpdate too many attributes to fit")
             bmisc.ba_put_be2(ba, len(baa))
             ba += baa
             ban = bytearray()
@@ -435,7 +451,7 @@ class BGPUpdate(BGPMessage):
                 raise Exception("BGPUpdate too many advertised routes to fit")
             bmisc.ba_put_be2(ba, len(ban))
             ba += ban
-            BGPThing.__init__(self, env, ba)
+            BGPMessage.__init__(self, env, msg_type.UPDATE, ba)
         else:
             raise Exception("BGPUpdate() bad parameters")
     def __str__(self):
@@ -479,28 +495,98 @@ class BGPUpdate(BGPMessage):
     def parse_attrs(env, pc):
         """Parse a collection of attributes into a list, from the
         "Path Attributes" field of the Update message."""
-        XXX
+        res = []
+        while len(pc):
+            if len(pc) < 2:
+                raise Exception("Truncated attribute in BGPUpdate")
+            aflags = pc.get_byte()
+            atype = pc.get_byte()
+            if aflags & attr_flag.Extended_Length:
+                if len(rc) < 2:
+                    raise Exception("Truncated attribute length in BGPUpdate")
+                alen = pc.get_be2()
+            else:
+                if len(rc) < 1:
+                    raise Exception("Truncated attribute length in BGPUpdate")
+                alen = pc.get_byte()
+            if len(pc) < alen:
+                raise Exception("Truncated attribute value in BGPUpdate")
+            aval = pc.get_bytes(alen)
+            res.append(BGPAttribute(aflags, atype, alen))
+        return(res)
     @staticmethod
     def format_attrs(env, ba, attrs):
         """Format a collection of attributes attrs into a bytearray ba."""
-        XXX
+        for attr in attrs:
+            ba += attr.raw
 
 class BGPKeepalive(BGPMessage):
     """A BGP keepalive message -- see RFC 4271 4.4."""
-    pass # XXX implement for real
+    __slots__ = []
+    def __init__(self, env, msg = None):
+        if msg is not None:
+            # A BGPMessage; further parse its payload field.
+            # Which should just be empty in a keepalive.
+            if len(msg.payload) > 0:
+                raise Exception("BGPKeepalive has non empty payload")
+            BGPThing.__init__(self, env, msg.raw)
+            self.type = msg.type
+            self.payload = msg.payload
+        else:
+            # By fields, of which a keepalive has none.
+            BGPMessage.__init__(self, env, msg_type.KEEPALIVE, bytes())
+    def __str__(self):
+        return("msg(type=" + msg_type.value2name(self.type) + ")")
 
 class BGPNotification(BGPMessage):
     """A BGP notification message -- see RFC 4271 4.5."""
-    pass # XXX implement for real
+    __slots__ = ["error_code", "error_subcode", "data"]
+    def __init__(self, env, *args):
+        if len(args) == 1:
+            # A BGPMessage; further parse its payload field.
+            msg = args[0]
+            BGPThing.__init__(self, env, msg.raw)
+            self.type = msg.type
+            self.payload = msg.payload
+            pc = ParseCtx(self.payload)
+            if len(pc) < 2:
+                raise Exception("BGPNotification truncated payload")
+            self.error_code = pc.get_byte()
+            self.error_subcode = pc.get_byte()
+            self.data = bytes(pc)
+        elif len(args) == 2 or len(args) == 3:
+            # By fields: error code, error subcode, and maybe data.  Given
+            # that, format the raw stuff.
+            (self.error_code, self.error_subcode, self.data) = args
+            self.error_code &= 255
+            self.error_subcode &= 255
+            self.data = bytes(self.data)
+            ba = bytearray()
+            ba.append(self.error_code)
+            ba.append(self.error_subcode)
+            ba += self.data
+            BGPMessage.__init__(self, env, msg_type.NOTIFICATION, ba)
+        else:
+            raise Exception("BGPNotification() bad parameters")
+    def __str__(self):
+        # XXX do something nice here instead of the following
+        BGPMessage.__str__(self)
 
 class BGPRouteRefreshMsg(BGPMessage):
     """A BGP route refresh message -- see RFC 2918 3."""
     pass # XXX implement for real
 
-## ## ## BGP Parameters (like capabilities)
+## ## ## BGP Parameters (e.g., capabilities)
 
 class BGPParameter(BGPThing):
     """A BGP optional parameter as found in the open message --
     see RFC 4271 4.2."""
+    pass # XXX implement for real
+
+## ## ## BGP Attributes (as found in UPDATE)
+
+class BGPAttribute(BGPThing):
+    """A BGP attribute as found in the update message -- see
+    RFC 4271 4.3 and 5."""
     pass # XXX implement for real
 
