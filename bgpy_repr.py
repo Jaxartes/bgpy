@@ -80,9 +80,9 @@ attr_flag = ConstantSet(
     Transitive          = 0x40, # RFC 4271 4.3 - 1 = attribute is transitive
                                 #                0 = attribute is non-transitive
     Partial             = 0x20, # RFC 4271 4.3 - 1 = information is partial
-                                                 0 = information is complete
+                                #                0 = information is complete
     Extended_Length     = 0x10, # RFC 4271 4.3 - 1 = two byte length
-                                                 0 = one byte length
+                                #                0 = one byte length
 )
 
 # BGP Error Codes -- see RFC 4271, also
@@ -159,6 +159,68 @@ err_sub_cease = ConstantSet(
 err_sub_rfrmsg = ConstantSet(
     ( "reserv", "Reserved",                     0 ), # RFC 7313
     ( "msglen", "Invalid Message Length",       1 ), # RFC 7313
+)
+
+# address family numbers, used in some places in BGP as "AFI"
+# See https://www.iana.org/assignments/address-family-numbers/address-family-numbers-2.csv
+afis = ConstantSet(
+    ( "IP", "IP (IP version 4)", 1 ),
+    ( "IP6", "IP6 (IP version 6)", 2 ),
+    ( "NSAP", "NSAP", 3 ),
+    ( "HDLC", "HDLC (8-bit multidrop)", 4 ),
+    ( "BBN_1822", "BBN 1822", 5 ),
+    ( "802", "802 (includes all 802 media plus Ethernet \"canonical format\")", 6 ),
+    ( "E_163", "E.163", 7 ),
+    ( "E_164_SMDS", "E.164 (SMDS, Frame Relay, ATM)", 8 ),
+    ( "F_69", "F.69 (Telex)", 9 ),
+    ( "X_121", "X.121 (X.25, Frame Relay)", 10 ),
+    ( "IPX", "IPX", 11 ),
+    ( "Appletalk", "Appletalk", 12 ),
+    ( "Decnet_IV", "Decnet IV", 13 ),
+    ( "Banyan_Vines", "Banyan Vines", 14 ),
+    ( "E_164_NSAP", "E.164 with NSAP format subaddress", 15 ), # [ATM Forum UNI 3.1. October 1995.][Andy_Malis]
+    ( "DNS", "DNS (Domain Name System)", 16 ),
+    ( "Distinguished_Name", "Distinguished Name", 17 ), # [Charles_Lynn]
+    ( "AS_Number", "AS Number", 18 ), # [Charles_Lynn]
+    ( "XTP_IPv4", "XTP over IP version 4", 19 ), # [Mike_Saul]
+    ( "XTP_IPv6", "XTP over IP version 6", 20 ), # [Mike_Saul]
+    ( "XTP_native", "XTP native mode XTP", 21 ), # [Mike_Saul]
+    ( "Fibre_Channel_Port", "Fibre Channel World-Wide Port Name", 22 ), # [Mark_Bakke]
+    ( "Fibre_Channel_Node", "Fibre Channel World-Wide Node Name", 23 ), # [Mark_Bakke]
+    ( "GWID", "GWID", 24 ), # [Subra_Hegde]
+    ( "L2VPN", "AFI for L2VPN information", 25 ), # [RFC4761][RFC6074]
+    ( "MPLS_TP_Section", "MPLS-TP Section Endpoint Identifier", 26 ), # [RFC7212]
+    ( "MPLS_TP_LSP", "MPLS-TP LSP Endpoint Identifier", 27 ), # [RFC7212]
+    ( "MPLS-TP_Pseudowire", "MPLS-TP Pseudowire Endpoint Identifier", 28 ), # [RFC7212]
+    ( "MT_IP", "MT IP: Multi-Topology IP version 4", 29 ), # [RFC7307]
+    ( "MT_IPv6", "MT IPv6: Multi-Topology IP version 6", 30 ), # [RFC7307]
+)
+
+# Subsequent Address Family Identifier (SAFI) values
+# See RFC 4760 and:
+# https://www.iana.org/assignments/safi-namespace/safi-namespace-2.csv
+safis = ConstantSet(
+    ( "unicast", "Network Layer Reachability Information used for unicast forwarding", 1 ), # [RFC4760]
+    ( "multicast", "Network Layer Reachability Information used for multicast forwarding", 2 ), # [RFC4760]
+    ( "MPLS", "Network Layer Reachability Information (NLRI) with MPLS Labels", 4 ), # [RFC8277]
+    ( "MCAST_VPN", "MCAST-VPN", 5 ), # [RFC6514]
+    ( "Pseudowires", "Network Layer Reachability Information used for Dynamic Placement of Multi-Segment Pseudowires", 6 ), # [RFC7267]
+    ( "Encapsulation", "Encapsulation SAFI", 7 ), # [RFC5512]
+    ( "MCAST_VPLS", "MCAST-VPLS", 8 ), # [RFC7117]
+    ( "Tunnel", "Tunnel SAFI", 64 ), # [Gargi_Nalawade][draft-nalawade-kapoor-tunnel-safi-01]
+    ( "VPLS", "Virtual Private LAN Service (VPLS)", 65 ), # [RFC4761][RFC6074]
+    ( "MDT", "BGP MDT SAFI", 66 ), # [RFC6037]
+    ( "4over6", "BGP 4over6 SAFI", 67 ), # [RFC5747]
+    ( "6over4", "BGP 6over4 SAFI", 68 ), # [Yong_Cui]
+    ( "L1VPN_auto_disc", "Layer-1 VPN auto-discovery information", 69 ), # [RFC5195]
+    ( "EVPNs", "BGP EVPNs", 70 ), # [RFC7432]
+    ( "LS", "BGP-LS", 71 ), # [RFC7752]
+    ( "LS_VPN", "BGP-LS-VPN", 72 ), # [RFC7752]
+    ( "MPLS_VPN", "MPLS-labeled VPN address", 128 ), # [RFC4364][RFC8277]
+    ( "MPLS_VPN_Multicast", "Multicast for BGP/MPLS IP Virtual Private Networks (VPNs)", 129 ), # [RFC6513][RFC6514]
+    ( "RT_constr", "Route Target constrains", 132 ), # [RFC4684]
+    ( "IPv4_diss_flow_spec", "IPv4 dissemination of flow specification rules", 133 ), # [RFC5575]
+    ( "VPNv4_diss_flow_spec", "VPNv4 dissemination of flow specification rules", 134 ), # [RFC5575]
 )
 
 # The all-ones marker defined in RFC 4271 4.1
@@ -574,7 +636,35 @@ class BGPNotification(BGPMessage):
 
 class BGPRouteRefreshMsg(BGPMessage):
     """A BGP route refresh message -- see RFC 2918 3."""
-    pass # XXX implement for real
+    __slots__ = ["afi", "safi"]
+    def __init__(self, env, *args):
+        if len(args) == 1:
+            # A BGPMessage; further parse its payload field
+            msg = args[0]
+            BGPThing.__init__(self, env, msg.raw)
+            self.type = msg.type
+            self.payload = msg.payload
+            pc = ParseCtx(self.payload)
+            if len(pc) != 4:
+                raise Exception("BGPRouteRefresh off length")
+            self.afi = pc.get_be2()
+            pc.get_byte() # ignore reserved byte
+            self.safi = pc.get_byte()
+        elif len(args) == 2:
+            # By fields: afi & safi.  Given them, format the raw stuff.
+            (self.afi, self.safi) = args
+            self.afi &= 65535
+            self.safi &= 255
+            ba = bytearray()
+            bmisc.ba_put_be2(ba, self.afi)
+            ba.append(0)
+            ba.append(self.safi)
+            BGPMessage.__init__(self, env, msg_type.ROUTE_REFRESH, ba)
+        else:
+            raise Exception("BGPRouteRefresh() bad parameters")
+    def __str__(self):
+        # XXX do something nice here instead of the following
+        BGPMessage.__str__(self)
 
 ## ## ## BGP Parameters (e.g., capabilities)
 
