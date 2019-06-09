@@ -463,6 +463,6 @@ while True:
                 for line in format_exc().split("\n"):
                     if line is not "":
                         bmisc.stamprint(sys.stderr, t, "    " + line)
-        if msg == None: break       # no more messages
+        if msg is None: break       # no more messages
         bmisc.stamprint(sys.stderr, t, "Recv: " + str(msg))
 

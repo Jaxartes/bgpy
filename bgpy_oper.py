@@ -52,7 +52,7 @@ class SocketWrap(object):
         # consume, parse, and return the message
         mr = self.ipnd[:ml]
         self.ipnd = self.ipnd[ml:]
-        return(brepr.BGPMessage(self.env, ParseCtx(mr)))
+        return(brepr.BGPMessage.parse(self.env, ParseCtx(mr)))
     def want_recv(self):
         """Indicates whether there's any point to receiving anything; use when
         preparing lists for select()"""

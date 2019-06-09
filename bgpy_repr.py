@@ -110,6 +110,7 @@ err_code = ConstantSet(
 #   (BGP Cease NOTIFICATION message subcodes)
 # https://www.iana.org/assignments/bgp-parameters/route-refresh-error-subcodes.csv
 #   (BGP ROUTE-REFRESH Message Error subcodes)
+# XXX consider remaking these as a single constant set of 2-tuples
 err_sub_msghdr = ConstantSet(
     ( "unspec", "Unspecific",                   0 ),    # RFC Errata 4493
     ( "notsyn", "Connection Not Synchronized",  1 ),    # RFC 4271
@@ -377,8 +378,28 @@ class BGPMessage(BGPThing):
         hx = ".".join(map("{:02x}".format, self.payload))
         return("msg(type=" + msg_type.value2name(self.type) +
                ", pld=" + hx + ")")
+    @staticmethod
+    def parse(env, data):
+        """Parse 'data' (either raw binary data or a BGPMessage) into
+        a subclass of BGPMessage, and return the result."""
 
-# XXX once all the BGPMessage subclasses are implemented, actually use them
+        if data is not BGPMessage:
+            # parse it to get type & payload first
+            data = BGPMessage(env, data)
+
+        if data.type == msg_type.OPEN:
+            return(BGPOpen(env, data))
+        elif data.type == msg_type.UPDATE:
+            return(BGPUpdate(env, data))
+        elif data.type == msg_type.NOTIFICATION:
+            return(BGPNotification(env, data))
+        elif data.type == msg_type.KEEPALIVE:
+            return(BGPKeepalive(env, data))
+        elif data.type == msg_type.ROUTE_REFRESH:
+            return(BGPRouteRefreshMsg(env, data))
+        else:
+            # unfamiliar type, this is the best we can do
+            return(data)
 
 class BGPOpen(BGPMessage):
     """A BGP open message -- see RFC 4271 4.2."""
@@ -418,8 +439,7 @@ class BGPOpen(BGPMessage):
                 pl = pc.get_byte()
                 if len(pc) < pl:
                     raise Exception("Truncated option in BGPOpen")
-                self.parms.append(BGPParameter(type=pt,
-                                               value=pc.get_bytes(pl)))
+                self.parms.append(BGPParameter(env, pt, pc.get_bytes(pl)))
         elif len(args) == 5:
             # By fields (version, my_as, hold_time, peer_id, parms).
             # Given that, format the raw stuff.
@@ -574,7 +594,7 @@ class BGPUpdate(BGPMessage):
             if len(pc) < alen:
                 raise Exception("Truncated attribute value in BGPUpdate")
             aval = pc.get_bytes(alen)
-            res.append(BGPAttribute(aflags, atype, alen))
+            res.append(BGPAttribute(env, aflags, atype, aval))
         return(res)
     @staticmethod
     def format_attrs(env, ba, attrs):
@@ -631,8 +651,39 @@ class BGPNotification(BGPMessage):
         else:
             raise Exception("BGPNotification() bad parameters")
     def __str__(self):
-        # XXX do something nice here instead of the following
-        BGPMessage.__str__(self)
+        # Print out details of the notification.
+        # describe the subcode -- how, depends on the error code
+        if self.error_code == err_code.msghdr:
+            sub = ", sub="+err_sub_msghdr.value2name(self.error_subcode)
+        elif self.error_code == err_code.opnmsg:
+            sub = ", sub="+err_sub_openmsg.value2name(self.error_subcode)
+        elif self.error_code == err_code.updmsg:
+            sub = ", sub="+err_sub_updmsg.value2name(self.error_subcode)
+        elif self.error_code == err_code.fsm:
+            sub = ", sub="+err_sub_fsm.value2name(self.error_subcode)
+        elif self.error_code == err_code.cease:
+            sub = ", sub="+err_sub_cease.value2name(self.error_subcode)
+        elif self.error_code == err_code.rfrmsg:
+            sub = ", sub="+err_sub_rfrmsg.value2name(self.error_subcode)
+        else:
+            # hold timer expired (which has no subcodes); or, unknown
+            # error code: represent nonzero subcodes numerically, and
+            # just show nothing for zero
+            if self.error_subcode != 0:
+                sub = ", sub="+str(self.error_subcode)
+            else:
+                sub = ""
+
+        # describe "data" -- in hex for now, if nonempty
+        if len(self.data):
+            data = ", data" + ".".join(map("{:02x}".format, self.data))
+        else:
+            data = ""
+
+        # describe the rest & put it all together
+        return("msg(type=" + msg_type.value2name(self.type) +
+               ", err=" + err_code.value2name(self.error_code) +
+               sub + data + ")")
 
 class BGPRouteRefreshMsg(BGPMessage):
     """A BGP route refresh message -- see RFC 2918 3."""
@@ -664,19 +715,75 @@ class BGPRouteRefreshMsg(BGPMessage):
             raise Exception("BGPRouteRefresh() bad parameters")
     def __str__(self):
         # XXX do something nice here instead of the following
-        BGPMessage.__str__(self)
+        return(BGPMessage.__str__(self))
 
 ## ## ## BGP Parameters (e.g., capabilities)
 
 class BGPParameter(BGPThing):
     """A BGP optional parameter as found in the open message --
     see RFC 4271 4.2."""
-    pass # XXX implement for real
+    __slots__ = ["type", "value"]
+    def __init__(self, env, *args):
+        if len(args) == 1:
+            # from raw binary data
+            raise Exception("not yet implemented - parameter from raw")
+        elif len(args) == 2:
+            # from type & value
+            # YYY rebuilding the raw part after parsing is a waste
+            self.type, self.value = args
+            self.value = bytes(self.value)
+            self.type &= 255;
+            if len(self.value) > 255:
+                raise Exception("parameter value too long")
+            ba = bytearray()
+            ba.append(self.type)
+            ba.append(len(self.value))
+            ba += self.value
+            BGPThing.__init__(self, env, ba)
+        else:
+            raise Exception("BGPParameter() bad parameters")
+    def bgp_thing_type(self): return(BGPParameter)
+    def bgp_thing_type_str(self): return("parm")
+    def __str__(self):
+        vhx = ".".join(map("{:02x}".format, self.value))
+        return("parm(type=" + bgp_parms.value2name(self.type) +
+               ", value=" + vhx + ")")
 
 ## ## ## BGP Attributes (as found in UPDATE)
 
 class BGPAttribute(BGPThing):
     """A BGP attribute as found in the update message -- see
     RFC 4271 4.3 and 5."""
-    pass # XXX implement for real
+    __slots__ = ["flags", "type", "val"]
+    def __init__(self, env, *data):
+        if len(args) == 1:
+            # from raw binary data
+            raise Exception("not yet implemented - attribute from raw")
+        elif len(args) == 3:
+            # from flags, type, value
+            # YYY rebuilding the raw part after parsing is a waste
+            self.flags, self.type, self.val = args
+            self.flags &= 255
+            self.val = bytes(self.val)
+            if len(val) > 65535:
+                raise Exception("BGPAttribute -- value too long")
+            elif len(val) > 255:
+                self.flags |= attr_flag.Extended_Length
+            ba = bytearray()
+            ba.append(self.flags)
+            ba.append(self.type)
+            if self.flags & attr_flag.Extended_Length:
+                bmisc.ba_put_be2(ba, len(self.val))
+            else:
+                ba.append(ba, len(self.val))
+            ba += self.val
+            BGPThing.__init__(self, env, ba)
+        else:
+            raise Exception("BGPAttribute() bad parameters")
+    def bgp_thing_type(self): return(BGPAttribute)
+    def bgp_thing_type_str(self): return("attribute")
+    def __str__(self):
+        vhx = ".".join(map("{:02x}".format, self.value))
+        return("attr(type=" + attr_code.value2name(self.type) +
+               ", value=" + vhx + ")")
 
