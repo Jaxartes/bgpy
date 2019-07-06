@@ -1,5 +1,5 @@
 # Jeremy Dilatush - All rights reserved.
-# bgpy_client.py - begun 27 April 2019
+# bgpy_clnt.py - begun 27 April 2019
 """This is the "skeleton" of the bgpy BGP implementation in Python.
 It provides a limited BGP tester that can connect to a BGP peer, exchange
 open and keepalive messages as required, and perform other operations
@@ -20,29 +20,29 @@ from bgpy_misc import dbg
 import bgpy_misc as bmisc
 import bgpy_repr as brepr
 import bgpy_oper as boper
-from bgpy_progs import register_programmes
+from bgpy_prog import register_programmes
 
 ## ## ## Command interface on stdin
 
 class Commanding(object):
-    """Command interface of bgpy_client.  Handle commands that are meant
+    """Command interface of bgpy_clnt.  Handle commands that are meant
     to come in on stdin.  Each command takes up a line. One command is "help".
     It documents the others."""
 
-    def __init__(self, bgpy_client):
+    def __init__(self, client):
         "initialize the Commanding object"
         # programme_handlers maps the name of a programme to its handler; see
         # register_programme()
         # programme_iterators maps the name of a programme already started
         # to its iterator; see register_programme().
-        # bgpy_client is the client object to which the commands apply,
+        # client is the client object to which the commands apply,
         # which will in turn be passed to programme handlers etc.
         # programme_iterator_times indicates when each should run; 0 means
         # immediately; None means it's suspended
         self.programme_handlers = dict()
         self.programme_iterators = dict()
         self.programme_iterator_times = dict()
-        self.bgpy_client = bgpy_client
+        self.client = client
 
     def register_programme(self, pname, phandler):
         """Register a 'canned programme', with the given name, and a handler.
@@ -74,9 +74,9 @@ class Commanding(object):
             words = bmisc.supersplit(line, end_at = "#")
         except Exception as e:
             print("Unable to parse command line: "+str(e),
-                  file=self.bgpy_client.get_error_channel())
+                  file=self.client.get_error_channel())
             if dbg.estk:
-                print_exc(file=self.bgpy_client.get_error_channel())
+                print_exc(file=self.client.get_error_channel())
             return
 
         # ignore an empty command line
@@ -86,87 +86,86 @@ class Commanding(object):
         if words[0] == "help":
             print("# Commands:\n"+
                   "#   echo ... -- write arbitrary text to output\n"++++
-                  "#   exit -- exit bgpy_client entirely\n"+
+                  "#   exit -- exit bgpy_clnt entirely\n"+
                   "#   pause programme -- pause a running programme\n"+
                   "#   resume programme -- resume a paused programme\n"+
                   "#   run programme [args] -- start a canned programme\n"+
                   "#   stop programme -- stop a running programme\n",
-                  file=self.bgpy_client.get_error_channel())
+                  file=self.client.get_error_channel())
         elif words[0] == "run":
             if len(words) < 2:
                 print("Missing program name in 'run'",
-                      file=self.bgpy_client.get_error_channel())
+                      file=self.client.get_error_channel())
                 return
             pname = words[1]
             if pname not in self.programme_handlers:
                 print("Unknown programme name '"+pname+"'.",
-                      file=self.bgpy_client.get_error_channel())
+                      file=self.client.get_error_channel())
                 return
             if pname in self.programme_iterators:
                 print("Programme '"+pname+"' already running.",
-                      file=self.bgpy_client.get_error_channel())
+                      file=self.client.get_error_channel())
                 return
-            it = self.programme_handlers[pname](self, self.bgpy_client,
-                                                words[2:])
+            it = self.programme_handlers[pname](self, self.client, words[2:])
             self.programme_iterators[pname] = it
             self.programme_iterator_times[pname] = 0
         elif words[0] == "pause":
             if len(words) != 2:
                 print("Syntax error in 'pause'",
-                      file=self.bgpy_client.get_error_channel())
+                      file=self.client.get_error_channel())
                 return
             pname = words[1]
             if pname not in self.programme_handlers:
                 print("Unknown programme name '"+pname+"'.",
-                      file=self.bgpy_client.get_error_channel())
+                      file=self.client.get_error_channel())
                 return
             if pname not in self.programme_iterators:
                 print("Programme '"+pname+"' not running.",
-                      file=self.bgpy_client.get_error_channel())
+                      file=self.client.get_error_channel())
                 return
             self.programme_iterator_times[pname] = None
         elif words[0] == "resume":
             if len(words) != 2:
                 print("Syntax error in 'resume'",
-                      file=self.bgpy_client.get_error_channel())
+                      file=self.client.get_error_channel())
                 return
             pname = words[1]
             if pname not in self.programme_handlers:
                 print("Unknown programme name '"+pname+"'.",
-                      file=self.bgpy_client.get_error_channel())
+                      file=self.client.get_error_channel())
                 return
             if pname not in self.programme_iterators:
                 print("Programme '"+pname+"' not running.",
-                      file=self.bgpy_client.get_error_channel())
+                      file=self.client.get_error_channel())
                 return
             self.programme_iterator_times[pname] = 0
         elif words[0] == "stop":
             if len(words) != 2:
                 print("Syntax error in 'stop'",
-                      file=self.bgpy_client.get_error_channel())
+                      file=self.client.get_error_channel())
                 return
             pname = words[1]
             if pname not in self.programme_handlers:
                 print("Unknown programme name "+repr(pname)+".",
-                      file=self.bgpy_client.get_error_channel())
+                      file=self.client.get_error_channel())
                 return
             if pname not in self.programme_iterators:
                 print("Programme "+repr(pname)+" not running.",
-                      file=self.bgpy_client.get_error_channel())
+                      file=self.client.get_error_channel())
                 return
             del self.programme_iterators[pname]
             del self.programme_iterator_times[pname]
         elif words[0] == "echo":
             print(" ".join(words[1]),
-                  file=self.bgpy_client.get_error_channel())
+                  file=self.client.get_error_channel())
         elif words[0] == "exit":
             if len(words) != 1:
                 print("Syntax error in 'exit'",
-                      file=self.bgpy_client.get_error_channel())
+                      file=self.client.get_error_channel())
             sys.exit(0)
         else:
             print("Unknown command '"+repr(word[0])+"'",
-                  file=self.bgpy_client.get_error_channel())
+                  file=self.client.get_error_channel())
             return
 
     def invoke(self, now):
@@ -218,7 +217,7 @@ def default_holdtime_expiry(clnt):
     bmisc.stamprint(clnt.errfile, clnt.time, "Hold time expired.")
 
 class Client(object):
-    """Main class of the bgpy_client application.  Holds state and settings
+    """Main class of the bgpy_clnt application.  Holds state and settings
     and has ways to make things happen."""
 
     def __init__(self,
@@ -347,7 +346,7 @@ equal_parms = {
 
 # command line parameters
 def usage():
-    print("USAGE: python3 bgpy_client.py [name=value...]" +
+    print("USAGE: python3 bgpy_clnt.py [name=value...]" +
           " [\"@command...\"] peer-address",
           file=sys.stderr)
     print("Named parameters recognized", file=sys.stderr)

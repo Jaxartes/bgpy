@@ -114,7 +114,7 @@ class SocketWrap(object):
 
 ## ## ## special tokens
 
-# NEXT_TIME -- Used in the Commanding class of bgpy_client.  A "programme"
+# NEXT_TIME -- Used in the Commanding class of bgpy_clnt.  A "programme"
 # can yield it to indicate it should be run the next time through the
 # event loop, no matter how long or short a time that is.
 NEXT_TIME = object()

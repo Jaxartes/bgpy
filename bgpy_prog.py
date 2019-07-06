@@ -1,7 +1,7 @@
 # Jeremy Dilatush - All rights reserved.
-# bgpy_progs.py - begun 5 July 2019
+# bgpy_prog.py - begun 5 July 2019
 """These are canned "programmes" for the BGP implementation in Python.
-They're registered with the code in bgpy_client.py, invoked by it
+They're registered with the code in bgpy_clnt.py, invoked by it
 through "register_programmes".  You can control them on the command
 line and make various things happen."""
 
@@ -109,9 +109,9 @@ _programmes["idler"] = idler
 ## ## ## Register all the canned programmes
 
 def register_programmes(commanding):
-    """register_programmes() registers all the canned programs in
-    bgpy_progs.py, with a Commanding object passed to it.  See
-    bgpy_client.py for the Commanding object definition and for
+    """register_programmes() registers all the canned programmes in
+    bgpy_prog.py, with a Commanding object passed to it.  See
+    bgpy_clnt.py for the Commanding object definition and for
     where this is called."""
 
     for pname in _programmes:
