@@ -81,7 +81,7 @@ def idler(commanding, client, argv):
                     client.open_recv.hold_time)
     if hold_time <= 0:
         # no periodic keepalives
-        keepalive_interval = 0
+        keepalive_interval = None
     else:
         # periodic keepalives at the specified ratio but no more than
         # one per second

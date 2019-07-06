@@ -36,6 +36,7 @@ class SocketWrap(object):
     def send(self, msg):
         "Queue a BGPMessage for sending"
         self.opnd += msg.raw
+        bmisc.stamprint("Send: " + str(msg))
         if dbg.sokw:
             bmisc.stamprint("SocketWrap.send(): " + repr(len(msg.raw)) +
                             " bytes added to queue, => " + repr(len(self.opnd)))
@@ -66,7 +67,9 @@ class SocketWrap(object):
         if dbg.sokw:
             bmisc.stamprint("SocketWrap.recv(): message, " +
                             repr(ml) + " bytes")
-        return(brepr.BGPMessage.parse(self.env, ParseCtx(mr)))
+        msg = brepr.BGPMessage.parse(self.env, ParseCtx(mr))
+        bmisc.stamprint("Recv: " + str(msg))
+        return(msg)
     def want_recv(self):
         """Indicates whether there's any point to receiving anything; use when
         preparing lists for select()"""

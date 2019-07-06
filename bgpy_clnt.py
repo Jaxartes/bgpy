@@ -518,5 +518,4 @@ while True:
         elif msg.type == brepr.msg_type.OPEN:
             # received an Open message -- keep track of it
             if c.open_recv is None: c.open_recv = msg
-        bmisc.stamprint("Recv: " + str(msg))
 
