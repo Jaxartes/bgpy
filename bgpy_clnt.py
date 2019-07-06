@@ -214,7 +214,7 @@ def default_holdtime_expiry(clnt):
     point.  But for the present program, just printing a message and
     doing nothing else seems reasonable."""
 
-    bmisc.stamprint(clnt.errfile, clnt.time, "Hold time expired.")
+    bmisc.stamprint("Hold time expired.")
 
 class Client(object):
     """Main class of the bgpy_clnt application.  Holds state and settings
@@ -272,7 +272,7 @@ class Client(object):
         self.open_sent = None           # BGP Open message we sent if any
         self.open_recv = None           # BGP Open message we received if any
 
-        bmisc.stamprint(self.errfile, self.time, "Connected.")
+        bmisc.stamprint("Connected.")
 
     def get_error_channel(self):
         return(self.errfile)
@@ -401,7 +401,7 @@ peer_addr = sys.argv[-1]
 
 # open a connection
 
-bmisc.stamprint(sys.stderr, time.time(), "Started.")
+bmisc.stamprint("Started.")
 
 sok = socket.socket(socket.AF_INET, socket.SOCK_STREAM,
                     socket.IPPROTO_TCP)
@@ -428,8 +428,7 @@ if equal_parms["tcp-hex"].valu:
         if rw is "r":   (posa, rws) = (tcp_hex_ipos, "tcp-rcv")
         else:           (posa, rws) = (tcp_hex_opos, "tcp-snd")
 
-        bmisc.stamprint(sys.stderr, time.time(),
-                        rws+", "+str(len(data))+" bytes:")
+        bmisc.stamprint(rws+", "+str(len(data))+" bytes:")
 
         # byte values
         vs = list(map("{:02x}".format, data))
@@ -473,16 +472,14 @@ while True:
     rlist.append(sys.stdin)
 
     if dbg.sokw:
-        bmisc.stamprint(sys.stderr, now,
-                        "select" + repr((rlist, wlist, xlist, timeo)))
+        bmisc.stamprint("select" + repr((rlist, wlist, xlist, timeo)))
 
     (rlist, wlist, xlist) = select.select(rlist, wlist, xlist, timeo)
 
     t = time.time()
 
     if dbg.sokw:
-        bmisc.stamprint(sys.stderr, t,
-                        "select => " + repr((rlist, wlist, xlist)))
+        bmisc.stamprint("select => " + repr((rlist, wlist, xlist)))
 
     if c.sok in wlist:
         # send some of any pending messages
@@ -490,7 +487,7 @@ while True:
     if c.sok in rlist:
         # receive some messages
         if not c.wrpsok.able_recv():
-            bmisc.stamprint(sys.stderr, t, "Connection was closed")
+            bmisc.stamprint("Connection was closed")
             break
     if sys.stdin in rlist:
         # read a command, or part of one
@@ -510,7 +507,7 @@ while True:
             msg = c.wrpsok.recv()
         except Exception as e:
             t = time.time()
-            bmisc.stamprint(sys.stderr, t, "Recv err: " + repr(e))
+            bmisc.stamprint("Recv err: " + repr(e))
             if dbg.estk:
                 for line in format_exc().split("\n"):
                     if line is not "":
@@ -520,5 +517,5 @@ while True:
         elif msg.type == brepr.msg_type.OPEN:
             # received an Open message -- keep track of it
             if c.open_recv is None: c.open_recv = msg
-        bmisc.stamprint(sys.stderr, t, "Recv: " + str(msg))
+        bmisc.stamprint("Recv: " + str(msg))
 

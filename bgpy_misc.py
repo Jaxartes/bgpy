@@ -2,7 +2,7 @@
 # bgpy_misc.py - begun 27 April 2019
 "Miscelleneous utility routines and classes used by bgpy."
 
-import time
+import time, sys
 
 class FlagSet(object):
     """A set accessed as named attributes.  You can do foo.bar to check
@@ -106,14 +106,15 @@ def superchars(s, append_chars=[]):
     for tuple in append_chars:
         yield(tuple)
 
-def stamprint(fp, t, msg):
-    """Print a time stamped message, to file fp, for time t, with message msg"""
+def stamprint(msg):
+    """Print a time stamped message 'msg'"""
 
+    t = time.time() # XXX replace with global time of record
     ts = int(t)
     tu = round((t - ts) * 1e+6)
     print("{}.{:06d} {}".
             format(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(ts)),
-                   tu, msg), file=fp)
+                   tu, msg), file=sys.stderr)
 
 class ConstantSet(object):
     """A set of constants which can be accessed as attributes easily.

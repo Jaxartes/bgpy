@@ -37,22 +37,19 @@ class SocketWrap(object):
         "Queue a BGPMessage for sending"
         self.opnd += msg.raw
         if dbg.sokw:
-            bmisc.stamprint(sys.stderr, time.time(),
-                            "SocketWrap.send(): " + repr(len(msg.raw)) +
+            bmisc.stamprint("SocketWrap.send(): " + repr(len(msg.raw)) +
                             " bytes added to queue, => " + repr(len(self.opnd)))
     def recv(self):
         "Return a received BGPMessage, or None if there is none"
         if not self.ista:
             # already know there isn't one, don't waste time checking
             if dbg.sokw:
-                bmisc.stamprint(sys.stderr, time.time(),
-                                "SocketWrap.recv(): None")
+                bmisc.stamprint("SocketWrap.recv(): None")
             return(None)
         if len(self.ipnd) < 19:
             # there isn't a full header
             if dbg.sokw:
-                bmisc.stamprint(sys.stderr, time.time(),
-                                "SocketWrap.recv(): not a full header yet")
+                bmisc.stamprint("SocketWrap.recv(): not a full header yet")
             self.ista = False
             return(None)
         # read the message length field of the header
@@ -60,16 +57,14 @@ class SocketWrap(object):
         if len(self.ipnd) < ml:
             # there isn't a full message
             if dbg.sokw:
-                bmisc.stamprint(sys.stderr, time.time(),
-                                "SocketWrap.recv(): not a full message yet")
+                bmisc.stamprint("SocketWrap.recv(): not a full message yet")
             self.ista = False
             return(None)
         # consume, parse, and return the message
         mr = self.ipnd[:ml]
         self.ipnd = self.ipnd[ml:]
         if dbg.sokw:
-            bmisc.stamprint(sys.stderr, time.time(),
-                            "SocketWrap.recv(): message, " +
+            bmisc.stamprint("SocketWrap.recv(): message, " +
                             repr(ml) + " bytes")
         return(brepr.BGPMessage.parse(self.env, ParseCtx(mr)))
     def want_recv(self):
@@ -84,8 +79,7 @@ class SocketWrap(object):
         """Called when select() indicates this socket can receive something.
         Returns True normally, False if socket closed."""
         if dbg.sokw:
-            bmisc.stamprint(sys.stderr, time.time(),
-                            "SocketWrap.able_recv() called")
+            bmisc.stamprint("SocketWrap.able_recv() called")
         get = 8 # XXX change this to something bigger after testing
         got = self.sok.recv(get)
         if len(got):
@@ -100,8 +94,7 @@ class SocketWrap(object):
     def able_send(self):
         "Called when select() indicates this socket can send something"
         if dbg.sokw:
-            bmisc.stamprint(sys.stderr, time.time(),
-                            "SocketWrap.able_send() called")
+            bmisc.stamprint("SocketWrap.able_send() called")
         sent = self.sok.send(self.opnd)
         if sent > 0:
             # we sent something, remove it from the output buffer
