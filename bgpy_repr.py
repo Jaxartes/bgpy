@@ -312,7 +312,7 @@ class IPv4Prefix(BGPThing):
             ba = bytearray()
             ba.append(self.ml)
             ba += self.pfx
-            BGPThing.__init__(self, env, ParseCtx(ba))
+            BGPThing.__init__(self, env, ParseCtx(bytes(ba)))
         else:
             raise Exception("IPv4Prefix() bad parameters")
     def bgp_thing_type(self): return(IPv4Prefix)
@@ -558,7 +558,7 @@ class BGPUpdate(BGPMessage):
             if nbits > 32:
                 raise Exception("Impossible mask length > 32: "+str(nbits))
             # see about getting that value out
-            nbytes = (ml + 7) >> 3
+            nbytes = (nbits + 7) >> 3
             if len(pc) < nbytes:
                 raise Exception("Truncated address in " + inwhat +
                                 " in BGPUpdate")
@@ -567,7 +567,7 @@ class BGPUpdate(BGPMessage):
             if nbits & 7:
                 bs[-1] &= 254 << (7 - (nbits & 7))
             # and record that in 'res'
-            res.append(IPv4Prefix(bytes(bs), env, nbits))
+            res.append(IPv4Prefix(env, bytes(bs), nbits))
         return(res)
     @staticmethod
     def format_routes(env, ba, rtes):
@@ -585,11 +585,11 @@ class BGPUpdate(BGPMessage):
             aflags = pc.get_byte()
             atype = pc.get_byte()
             if aflags & attr_flag.Extended_Length:
-                if len(rc) < 2:
+                if len(pc) < 2:
                     raise Exception("Truncated attribute length in BGPUpdate")
                 alen = pc.get_be2()
             else:
-                if len(rc) < 1:
+                if len(pc) < 1:
                     raise Exception("Truncated attribute length in BGPUpdate")
                 alen = pc.get_byte()
             if len(pc) < alen:
@@ -757,18 +757,18 @@ class BGPAttribute(BGPThing):
     RFC 4271 4.3 and 5."""
     __slots__ = ["flags", "type", "val"]
     def __init__(self, env, *data):
-        if len(args) == 1:
+        if len(data) == 1:
             # from raw binary data
             raise Exception("not yet implemented - attribute from raw")
-        elif len(args) == 3:
+        elif len(data) == 3:
             # from flags, type, value
             # YYY rebuilding the raw part after parsing is a waste
-            self.flags, self.type, self.val = args
+            self.flags, self.type, self.val = data
             self.flags &= 255
             self.val = bytes(self.val)
-            if len(val) > 65535:
+            if len(self.val) > 65535:
                 raise Exception("BGPAttribute -- value too long")
-            elif len(val) > 255:
+            elif len(self.val) > 255:
                 self.flags |= attr_flag.Extended_Length
             ba = bytearray()
             ba.append(self.flags)
@@ -776,7 +776,7 @@ class BGPAttribute(BGPThing):
             if self.flags & attr_flag.Extended_Length:
                 bmisc.ba_put_be2(ba, len(self.val))
             else:
-                ba.append(ba, len(self.val))
+                ba.append(len(self.val))
             ba += self.val
             BGPThing.__init__(self, env, ba)
         else:
@@ -784,7 +784,7 @@ class BGPAttribute(BGPThing):
     def bgp_thing_type(self): return(BGPAttribute)
     def bgp_thing_type_str(self): return("attribute")
     def __str__(self):
-        vhx = ".".join(map("{:02x}".format, self.value))
+        vhx = ".".join(map("{:02x}".format, self.val))
         return("attr(type=" + attr_code.value2name(self.type) +
-               ", value=" + vhx + ")")
+               ", val=" + vhx + ")")
 
