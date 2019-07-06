@@ -4,6 +4,34 @@
 
 import time, sys
 
+class TimeOfRecord(object):
+    """Keeps track of the current time, for use in time stamps and
+    scheduling and things like that.  Intentionally does *not* always
+    update -- sometimes it's convenient for things, that are being
+    done "about" the same time, to show exactly the same time stamp."""
+
+    __slots__ = frozenset("t")
+    def __init__(self):
+        """Initialize the TimeOfRecord.  Initially it's in "free" mode."""
+        self.t = None
+    def get(self):
+        """Retrieve the current time or time of record."""
+        if self.t is None:
+            # In "free" mode just return the current time
+            return(time.time())
+        else:
+            return(self.t)
+    def free(self):
+        """Sets to "free" mode in which the current time is always used."""
+        self.t = None
+    def set(self):
+        """Set the current time or time of record, to "right now."  Also
+        returns it."""
+        self.t = time.time()
+        return(self.t)
+
+tor = TimeOfRecord()
+
 class FlagSet(object):
     """A set accessed as named attributes.  You can do foo.bar to check
     if "bar" is contained in "foo"; you can add and remove it; you don't
@@ -109,12 +137,12 @@ def superchars(s, append_chars=[]):
 def stamprint(msg):
     """Print a time stamped message 'msg'"""
 
-    t = time.time() # XXX replace with global time of record
+    t = tor.get() # stamp it with the time of record
     ts = int(t)
     tu = round((t - ts) * 1e+6)
     print("{}.{:06d} {}".
             format(time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(ts)),
-                   tu, msg), file=sys.stderr)
+                   tu, msg), file=sys.stderr, flush=True)
 
 class ConstantSet(object):
     """A set of constants which can be accessed as attributes easily.
@@ -319,3 +347,4 @@ def ba_put_be4(ba, x):
     ba.append((x >> 16) & 255)
     ba.append((x >> 8) & 255)
     ba.append(x & 255)
+

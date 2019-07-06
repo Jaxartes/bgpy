@@ -31,7 +31,7 @@ def idler(commanding, client, argv):
                     Range 1.0 up; default 3.0; recommended 3.0 up.  No matter
                     what the value here, the interval between keepalives will
                     be at least 1 second, as mandated by RFC 4271 4.4.
-        XXX add BGP capabilities
+        XXX add BGP "capabilities"
     """
 
     if client.open_sent is not None:
@@ -100,9 +100,9 @@ def idler(commanding, client, argv):
         if keepalive_interval is None:
             yield(None)
         else:
-            yield(keepalive_interval + client.time)
+            yield(keepalive_interval + bmisc.tor.get())
 
-    # XXX maybe somehow see to handling hold time timeout
+    # XXX see to handling hold time timeout, but not here -- in client
 
 _programmes["idler"] = idler
 

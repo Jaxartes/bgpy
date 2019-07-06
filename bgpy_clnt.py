@@ -268,7 +268,6 @@ class Client(object):
         self.outfile = outfile
         self.errfile = errfile
         self.holdtime_sec = holdtime_sec
-        self.time = time.time()         # current time stamp of record
         self.open_sent = None           # BGP Open message we sent if any
         self.open_recv = None           # BGP Open message we received if any
 
@@ -454,11 +453,12 @@ for cmd in pre_commands:
 
 # and then do... stuff: the main event loop
 
+bmisc.tor.set()
+
 while True:
     # Run any pending "programmes" and figure out how long until the next
     # scheduled event if any; this provides a timeout for select().
-    now = time.time()
-    timeo = cmdi.invoke(now)
+    timeo = cmdi.invoke(bmisc.tor.get())
 
     # build socket lists for select()
     rlist = []
@@ -476,7 +476,9 @@ while True:
 
     (rlist, wlist, xlist) = select.select(rlist, wlist, xlist, timeo)
 
-    t = time.time()
+    bmisc.tor.set()
+
+    t = bmisc.tor.get()
 
     if dbg.sokw:
         bmisc.stamprint("select => " + repr((rlist, wlist, xlist)))
@@ -506,12 +508,11 @@ while True:
         try:
             msg = c.wrpsok.recv()
         except Exception as e:
-            t = time.time()
             bmisc.stamprint("Recv err: " + repr(e))
             if dbg.estk:
                 for line in format_exc().split("\n"):
                     if line is not "":
-                        bmisc.stamprint(sys.stderr, t, "    " + line)
+                        bmisc.stamprint("    " + line)
         if msg is None:
             break       # no more messages
         elif msg.type == brepr.msg_type.OPEN:
