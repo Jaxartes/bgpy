@@ -366,9 +366,10 @@ class BGPMessage(BGPThing):
                 # it has to fit in a byte
                 raise Exception("BGPMessage type out of range (internal)")
             ba = bytearray()
+            ba += BGP_marker
             bmisc.ba_put_be2(ba, l)
             ba.append(self.type)
-            ba.append(self.payload)
+            ba += self.payload
             BGPThing.__init__(self, env, ba)
         else:
             raise Exception("BGPMessage() bad parameters")
