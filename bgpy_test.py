@@ -314,3 +314,49 @@ def ParseCtx_test5():
             raise TestFailureError()
 
     print("ParseCtx_test5 completed ok", file=stderr)
+
+def ChoosableConcat_test():
+    """Test bmisc.ChoosableRange & bmisc.ChoosableConcat."""
+
+    # test vector
+    tv = [
+        ([], []),
+        ([("1", "dec")], ["1"]),
+        ([("1", "hex")], ["1"]),
+        ([("(2-3)", "dec")], ["2", "3"]),
+        ([("(4-5)(7-10)", "dec")],
+         ["47", "48", "49", "410", "57", "58", "59", "510"]),
+        ([("-(11-12)-(1f-21)-", "hex")],
+         ["-11-1f-", "-11-20-", "-11-21-",
+          "-12-1f-", "-12-20-", "-12-21-"]),
+        ([("13/(18-20)/16", "dec"),
+          ("13/x(18-20)/16", "hex")],
+         ["13/18/16", "13/19/16", "13/20/16",
+          "13/x18/16", "13/x19/16", "13/x1a/16", "13/x1b/16",
+          "13/x1c/16", "13/x1d/16", "13/x1e/16", "13/x1f/16",
+          "13/x20/16"]),
+        (list(map(lambda i: (i, "dec"), ["1", "(2-3)", "4", "(5-7)",
+                                         "8", "(9-10)", "(11-13)", "1(4-4)"])),
+         list(map(str, range(1, 15))))
+    ]
+
+    for ins, exp in tv:
+        le = len(exp)
+        exp = set(exp)
+        subs = []
+        inrep = []
+        for spec, t in ins:
+            subs.append(bmisc.ChoosableRange(spec, t = t))
+        cc = bmisc.ChoosableConcat(subs)
+        lg = len(cc)
+        got = set(cc)
+        print(repr((ins, exp)) + ": ", file=stderr)
+        print("\tgot len: " + repr(lg), file=stderr)
+        print("\texp len: " + repr(le), file=stderr)
+        if lg != le: raise TestFailureError()
+        print("\tgot val: " + repr(got), file=stderr)
+        print("\texp val: " + repr(exp), file=stderr)
+        if got != exp: raise TestFailureError()
+
+    print("ChoosableConcat_test completed ok", file=stderr)
+

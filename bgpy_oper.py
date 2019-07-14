@@ -113,5 +113,17 @@ class SocketWrap(object):
 # NEXT_TIME -- Used in the Commanding class of bgpy_clnt.  A "programme"
 # can yield it to indicate it should be run the next time through the
 # event loop, no matter how long or short a time that is.
-NEXT_TIME = object()
+@bmisc.single_instance
+class NEXT_TIME(object):
+    def __init__(self): pass
+    def __repr__(self): return("NEXT_TIME()")
+
+# WHILE_TX_PENDING -- Used in the Commanding class of bgpy_clnt.  A
+# "programme" can yield it to indicate it should be run as soon as
+# all currently pending output messages have been sent
+@bmisc.single_instance
+class WHILE_TX_PENDING(object):
+    def __init__(self): pass
+    def __repr__(self): return("WHILE_TX_PENDING()")
+
 

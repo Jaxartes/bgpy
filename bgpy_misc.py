@@ -348,3 +348,186 @@ def ba_put_be4(ba, x):
     ba.append((x >> 8) & 255)
     ba.append(x & 255)
 
+def single_instance(cls):
+    """Decorator to replace a class definition with a single instance of
+    that class.  Example:
+        @single_instance
+        class thingy(object):
+            def __init__(self): pass
+            def __str__(self): return("Thingy")
+    """
+    return(cls())
+
+class ChoosableRange(object):
+    """A set, possibly huge, of strings, which can be specified in terms
+    of a ranges and collections of values.  To use:
+        create with range notation
+        use len() to find out the total size of the set
+        use choice() (in 'random') to select members pseudorandomly
+    """
+
+    # internal structure:
+    #   hex - True if t = "hex", False if t = "dec"
+    #   parts - list with one entry per part of the range specification;
+    #       each is one of the following:
+    #           fixed value string
+    #           2-tuple containing min & count integers of a decimal range
+    #           3-tuple containing min & count integers of a hex range, & length
+    #   count - number of elements
+    __slots__ = frozenset(["hex", "parts", "count"])
+
+    def __init__(self, spec, t = "dec",
+                 prefix = "(", infix = "-", suffix = ")"):
+        """Build the set using range notation.  Example:
+        "1.(2-3).(4-6).0/24", which has 6 elements.  The ranges can be
+        of decimal integers (the default) or fixed length hexadecimal
+        integers (with t = "hex")."""
+
+        if t == "dec":      self.hex = False
+        elif t == "hex":    self.hex = True
+        else:               raise ValueError("unknown 't' value")
+
+        # start out with a range containing just empty string, then
+        # parse 'spec' and fill it out
+        self.parts = []
+        self.count = 1
+        pos = 0
+        while pos < len(spec):
+            # look for "("
+            pp = spec.find(prefix, pos)
+            if pp < 0: pp = len(spec)
+            if pp > pos:
+                # there's some constant stuff
+                self.parts.append(spec[pos:pp])
+                pos = pp
+            else:
+                # there's a range; look for "-" and ")"
+                ip = spec.find(infix, pos)
+                sp = spec.find(suffix, pos)
+                if sp < 0: raise ValueError("'(' without ')'")
+                if ip < 0 or ip > sp: raise ValueError("'( )' without '-'")
+                p1 = spec[(pos+len(prefix)):ip]
+                p2 = spec[(ip+len(infix)):sp]
+                pos = sp + len(suffix)
+
+                # Now that we have the range endpoints as strings (p1 & p2),
+                # check them and convert them to numbers.
+                if self.hex:
+                    # p1 & p2 should be two hex strings of the same length
+                    l = len(p1)
+                    if l != len(p2):
+                        raise ValueError("length mismatch in hex range")
+                    for p in (p1, p2):
+                        if len(p) == 0:
+                            raise ValueError("empty string in range")
+                        for d in p:
+                            if d >= '0' and d <= '9':
+                                pass # ok, it's a hex digit
+                            elif d >= 'a' and d <= 'f':
+                                pass # ok, it's a hex digit
+                            elif d >= 'A' and d <= 'F':
+                                pass # ok, it's a hex digit
+                            else:
+                                raise ValueError("non hex digit in hex range")
+                    p1 = int(p1, 16)
+                    p2 = int(p2, 16)
+                    if p2 < p1:
+                        raise ValueError("hex range out of order")
+                    self.parts.append((p1, p2 - p1 + 1, l))
+                else:
+                    # p1 & p2 should be two decimal integers
+                    for p in (p1, p2):
+                        if len(p) == 0:
+                            raise ValueError("empty string in range")
+                        for d in p:
+                            if d >= '0' and d <= '9':
+                                pass # ok, it's a digit
+                            else:
+                                raise ValueError("non digit in range")
+                    p1 = int(p1, 10)
+                    p2 = int(p2, 10)
+                    if p2 < p1:
+                        raise ValueError("range out of order")
+                    self.parts.append((p1, p2 - p1 + 1))
+                self.count *= p2 - p1 + 1
+
+    def __len__(self):
+        return(self.count)
+
+    def __getitem__(self, key):
+        if type(key) is not int:
+            raise TypeError("ChoosableRange() index should be 'int'")
+        if key < 0:
+            raise IndexError("ChoosableRange() index should not be negative")
+        res = ""
+        for p in self.parts:
+            if type(p) is str:
+                # constant string
+                res += p
+            elif self.hex:
+                # hexadecimal range
+                key0 = key % p[1]
+                key //= p[1]
+                res += "{:0{width}x}".format(p[0] + key0, width = p[2])
+            else:
+                # decimal range
+                key0 = key % p[1]
+                key //= p[1]
+                res += str(p[0] + key0)
+
+        if key > 0:
+            raise IndexError("ChoosableRange() index too high")
+
+        return(res)
+
+class ChoosableConcat(object):
+    """A combination of ChoosableRange()s.
+    This is a concatenation, not a union, if you care."""
+
+    __slots__ = frozenset(["subs", "cumul"])
+
+    def __init__(self, subs = []):
+        self.subs = []
+        self.cumul = []
+        for sub in subs: self.add(sub)
+
+    def add(self, sub):
+        self.subs.append(sub)
+        l = len(sub)
+        if len(self.cumul): l += self.cumul[-1]
+        self.cumul.append(l)
+
+    def __len__(self):
+        if len(self.cumul):
+            return(self.cumul[-1])
+        else:
+            return(0)
+
+    def __getitem__(self, key):
+        if type(key) is not int:
+            raise TypeError("ChoosableConcat() index should be 'int'")
+        if key < 0:
+            raise IndexError("ChoosableConcat() index should not be negative")
+        if len(self.subs) == 0:
+            # since it's empty, every 'key' value is out of range
+            raise IndexError("ChoosableConcat() is empty")
+        if key >= self.cumul[-1]:
+            raise IndexError("ChoosableConcat() index is too high")
+        
+        # binary search among the ranges
+        mn = 0                      # minimum index in the range
+        mx = len(self.cumul) - 1    # maximum index in the range
+
+        while mx > mn:
+            # pick a midpoint for the range, and look at it
+            md = (mn + mx) >> 1
+            if key < self.cumul[md]:
+                # key falls somewhere in mn ... md
+                mx = md
+            else:
+                # key falls somewhere in md + 1 ... mx
+                mn = md + 1
+
+        # and do lookup in that range
+        if mn > 0: key -= self.cumul[mn - 1]
+        return(self.subs[mn][key])

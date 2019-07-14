@@ -54,10 +54,15 @@ class Commanding(object):
         should do whatever's desired of the canned program, and yield
         one of the following:
             number -- time to wait until before doing next() again
-            None -- wait for an explicit "resume" command
-            boper.NEXT_TIME -- run next time through the event loop, which might
-                be right away, or some time in the future after something
-                else happens
+            None -- Wait for an explicit "resume" command.
+            boper.NEXT_TIME -- Run next time through the event loop, which might
+                be right away, or long in the future after something
+                else happens.  Use this if you're waiting for some special
+                event, as:
+                    while not has_my_event_happened_yet():
+                        yield boper.NEXT_TIME
+            boper.WHILE_TX_PENDING -- Run when there are no outbound messages
+                queued for transmission.
         """
         if type(pname) is not str:
             raise TypeError("internal: handler name not a string: "+repr(pname))
@@ -182,11 +187,21 @@ class Commanding(object):
             t = self.programme_iterator_times[pname]
 
             # shall we run it now?
-            if t is None:               run_it = False # paused indefinitely
-            elif t is boper.NEXT_TIME:  run_it = True # "next time" is now
-            elif t <= now:              run_it = True # now it's time
-            else:                       run_it = False # not yet time
-               
+            if t is None:
+                # Paused indefinitely.
+                run_it = False
+            elif t is boper.NEXT_TIME:
+                # This is "next time"
+                run_it = True
+            elif t is boper.WHILE_TX_PENDING:
+                # Run if the outbound buffer is empty.
+                run_it = (len(self.wrpsok.opnd) <= 0)
+            elif t <= now:
+                # Now it's time.
+                run_it = True
+            else:
+                # It's not yet time.
+                run_it = False
 
             # If so, go for it.
             if run_it:
@@ -199,9 +214,20 @@ class Commanding(object):
                     del self.programme_iterators[pname]
 
             # And account for the next time it's to run if any.
-            if (t is not None and t is not boper.NEXT_TIME and
-                (time_next is None or t < time_next)):
-                time_next = t
+            if t is None:
+                pass # waiting indefinitely
+            elif t is boper.NEXT_TIME:
+                pass # waiting until something else wakes us up
+            elif t is boper.WHILE_TX_PENDING:
+                # We're to wait for the outbound buffer to empty.
+                if len(self.wrpsok.opnd) <= 0:
+                    time_next = 0 # already happened
+                else:
+                    # Hasn't happened yet; we'll come back here by the time
+                    # it does.
+                    pass
+            elif time_next is None or t < time_next:
+                time_next = t # a time to wake up, before we were planning to
 
         if time_next is None:   return(None)
         else:                   return(max(0, time_next - now))
@@ -406,7 +432,7 @@ sok = socket.socket(socket.AF_INET, socket.SOCK_STREAM,
                     socket.IPPROTO_TCP)
 try:
     sok.connect((peer_addr, brepr.BGP_TCP_PORT))
-        # XXX add an optional parameter for remote TCP port
+        # XXX maybe add an optional parameter for remote TCP port
 except Exception as e:
     print("Failed to connect to "+peer_addr+" port "+
           str(bmisc.BGP_TCP_PORT)+": "+str(e), file=sys.stderr)
