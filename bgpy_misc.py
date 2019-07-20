@@ -531,3 +531,80 @@ class ChoosableConcat(object):
         # and do lookup in that range
         if mn > 0: key -= self.cumul[mn - 1]
         return(self.subs[mn][key])
+
+class EqualParms(object):
+    """Handle name=value parameters.  You create an EqualParms object with
+    the appropriate information, then you can use it to parse the parameters
+    and validate them.  Usage:
+        create one, empty
+        add known names with add*()
+        parse input with parse()"""
+
+    def __init__(self):
+        """Initializes it, empty."""
+        self.seen = set() # all names seen
+        self.aliases = dict() # maps alias names to canonical names
+        self.descs = dict() # descriptive strings of each
+        self.parsers = dict() # parse each parameter value from string
+        self.values = dict() # values parsed if any
+        self.storers = dict() # callbacks to store results
+
+    def add_alias(self, name, cname):
+        """Define an alias, named 'name', pointing to 'cname'."""
+        if name in self.seen: raise KeyError("Name redefined")
+        if cname not in self.seen:
+            raise KeyError("Dangling alias")
+        self.seen.add(name);
+        self.aliases[name] = cname
+
+    def add(self, name, desc, parser = None, storer = None):
+        """Define a name 'name'.  'desc' is its description.
+        'parser' is a function to call to parse it (passed this EqualParm;
+        the name; the previous value or None; and the string to parse).
+        'storer' is used to store it,
+        and may be omitted to just use 'self.values'."""
+
+        if name in self.seen: raise KeyError("Name redefined")
+        self.seen.add(name)
+        self.descs[name] = desc
+        if parser is not None: self.parsers[name] = parser
+        if storer is not None: self.storers[name] = storer
+
+    def describe(self):
+        "Iterate over names known, with descriptions, for help purposes."
+
+        for name in sorted(self.seen):
+            if name in self.descs:
+                desc = self.descs[name]
+            elif name in self.aliases:
+                desc = "synonym for \"" + self.aliases[name] + "\""
+            else:
+                desc = "(no information)"
+            yield((name, desc))
+
+    def parse(self, arg):
+        "Parse a name=value pair from string."
+        try:
+            (n, v) = arg.split("=", 1)
+        except:
+            n = None
+            v = arg
+        if n not in self.seen:
+            if n is None:
+                raise Exception("expected name=value pair")
+            else:
+                raise Exception("unrecognized name in name=value pair")
+        while n in self.aliases:
+            n = self.aliases[n]
+        if n in self.values:
+            pv = self.values[n]
+        else:
+            pv = None
+        if n in self.parsers:
+            v2 = self.parsers[n](self, n, pv, v)
+        else:
+            v2 = v
+        self.values[n] = v2
+        if n in self.storers:
+            self.storers[n](v2)
+

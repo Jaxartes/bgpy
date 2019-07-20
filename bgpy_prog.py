@@ -106,6 +106,65 @@ def idler(commanding, client, argv):
 
 _programmes["idler"] = idler
 
+## ## ## Canned programme: "basic_orig"
+
+def basic_orig(commanding, client, argv):
+    """ "basic_orig" canned programme: Sends Updates carring IPv4 routes
+    pseudorandomly generated according to some simple configuration.
+
+    The configuration is in name=value pairs, as follows, with examples:
+        nh=10.0.0.1
+            IPv4 address to use as next hop for all routes; default 10.0.0.1.
+        dest=10.(3-5).0.0/(16-20)
+            Address/masklength specification of destinations to generate
+            routes for.  Need at least one, can have more.
+        iupd=20
+            Number of updates (one route each) to send in the initial
+            burst.  Default 20.
+        bupd=1
+            Number of updates (one route each) to send in subsequent
+            bursts.  Default 1.
+        bint=10
+            Seconds between bursts of updates.  May be fractional.  Default 10.
+        slots=100
+            Number of "slots" for keeping track of advertised routes.
+            The maximum number of routes that have been advertised and not
+            withdrawn; the average number will be less.
+            Default 100.
+        newdest=25
+            Percent probability of, when creating a new route, picking
+            a new destination (instead of using the last one belonging
+            to the chosen "slot").  Default 25.
+        as_path=1,2,(3-5)
+            AS path.  May use numeric ranges.  May specify more than
+            one.  If you don't specify any a simple reasonable default
+            is chosen.  Notation:
+                A sequence of numbers separated by commas makes up an
+                AS_SEQUENCE segment.
+                Precede with "set," to make it an AS_SET segment instead.
+                Use "/" to separate multiple segments.
+                Likewise "cseq," and "cset," prefixes make
+                it AS_CONFED_SEQUENCE & AS_CONFED_SET (see RFC 5065).
+            An empty AS path is permitted.
+    """
+
+    ## storage for configuration
+
+    c_nh = "XXX 10.0.0.1"
+    c_dests = ChoosableConcat()
+    c_iupd = 20
+    c_bupd = 1
+    c_bint = 10
+    c_slots = 100
+    c_newdest = 25.0
+    c_as_path = ChoosableConcat()
+
+    ## parse name=value pairs in the arguments
+
+    XXX
+
+_programmes["basic_orig"] = basic_orig
+
 ## ## ## Register all the canned programmes
 
 def register_programmes(commanding):
