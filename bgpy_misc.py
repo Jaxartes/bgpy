@@ -615,6 +615,12 @@ class EqualParms(object):
             n = self.aliases[n]
         return(self.values[n])
 
+    def __setitem__(self, n, v):
+        "Set the value for name 'n' bypassing the parser."
+        while n in self.aliases:
+            n = self.aliases[n]
+        self.values[n] = v
+
 def EqualParms_parse_i32(ep, n, pv, s):
     """'parser' routine for EqualParms() to parse a 32-bit unsigned
     integer."""

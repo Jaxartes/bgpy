@@ -7,8 +7,7 @@ line and make various things happen."""
 
 ## ## ## Top matter
 
-import sys
-import time
+import sys, time, random
 
 from bgpy_misc import dbg
 import bgpy_misc as bmisc
@@ -135,7 +134,7 @@ def basic_orig(commanding, client, argv):
             Percent probability of, when creating a new route, picking
             a new destination (instead of using the last one belonging
             to the chosen "slot").  Default 25.
-        as_path=1,2,(3-5)
+        aspath=1,2,(3-5)
             AS path.  May use numeric ranges.  May specify more than
             one.  If you don't specify any a simple reasonable default
             is chosen.  Notation:
@@ -148,20 +147,88 @@ def basic_orig(commanding, client, argv):
             An empty AS path is permitted.
     """
 
-    ## storage for configuration
+    ## configuration via name-value pairs
+    cfg = bmisc.EqualParms()
 
-    c_nh = "XXX 10.0.0.1"
-    c_dests = ChoosableConcat()
-    c_iupd = 20
-    c_bupd = 1
-    c_bint = 10
-    c_slots = 100
-    c_newdest = 25.0
-    c_as_path = ChoosableConcat()
+    cfg.add("nh", "Next hop IPv4 address", bmisc.EqualParms_parse_i32_ip)
+    cfg.parse("nh=10.0.0.1") # default value
 
-    ## parse name=value pairs in the arguments
+    cfg.add("dest", "Destination IPv4 address range",
+            "XXX_parser", "XXX_setter")
+    cfg["dest"] = ChoosableConcat()
+    cfg.add("iupd", "Num updates in initial burst", "XXX parser")
+    cfg["iupd"] = 20 # default value
+    cfg.add("bupd", "Num updates per subsequent burst", "XXX parser")
+    cfg["bupd"] = 1 # default value
+    cfg.add("bint", "Seconds between bursts", "XXX parser")
+    cfg["bint"] = 10.0 # default value
+    cfg.add("slots", "Slots for tracking our routes", "XXX parser")
+    cfg["slots"] = 100 # default value
+    cfg.add("newdest", "% probability of new destination", "XXX parser")
+    cfg["newdest"] = 25
+    cfg.add("aspath", "AS path specification", "XXX parser", "XXX setter")
+    cfg["aspath"] = ChoosableConcat()
 
-    XXX
+    for arg in argv:
+        cfg.parse(arg)
+
+    if len(cfg["dest"]) < cfg["slots"]:
+        raise Exception("\"basic_orig\" requires at least as many destinations"+
+                        " as \"slots\"")
+
+    ## ## storage of current state
+
+    # pseudorandom number generator
+    prng = random.Random(time.time())
+
+    # advertised route slots
+    s_full = [] # True for each slot that's full
+    s_dest = [] # destination used for this slot, or None if unassigned
+    for slot in range(cfg["slots"]):
+        s_full.append(False)
+        s_dest.append(None)
+
+    # destinations used - to avoid duplication
+    dests_used = set()
+
+    # updates to go in current burst
+    togo = cfg["iupd"]
+
+    ## ## main loop sending updates & waiting
+    while True:
+        # wait at least until the outbound buffer is clear; sometimes longer
+        if togo > 0:
+            yield boper.WHILE_TX_PENDING
+        else:
+            yield cfg["bint"]
+            togo = cfg["bupd"]
+
+        # pick a "slot" to update; *what* we do depends on what's in the slot
+        s = prng.randint(0, cfg["slots"] - 1)
+        if s_full[s]:
+            # Slot is full: make it empty by withdrawing the route.
+            msg = brepr.BGPUpdate([s_dest[s]], [], [])
+            client.wrpsok.send(msg)
+            s_full[s] = False
+        else:
+            # Slot is empty: make it full by advertising a route.
+            if s_dest[s] is None or (prng.random() * 100.0) < cfg["newdest"]:
+                # pick a new destination
+                if s_dest[s] is not None:
+                    dests_used.remove(s_dest[s])
+                    s_dest[s] = None
+                while s_dest[s] is None or s_dest[s] in dests_used:
+                    s_dest[s] = prng.choice(cfg["dest"])
+                dests_used.add(s_dest[s])
+            attrs = []
+            attrs.append("XXX origin")
+            attrs.append("XXX as_path")
+            attrs.append("XXX next_hop")
+            if "XXX is_ibgp":
+                attrs.append("XXX local_pref")
+            msg = brepr.BGPUpdate([], attrs, [s_dest[s]])
+            client.wrpsok.send(msg)
+            s_full[s] = True
 
 _programmes["basic_orig"] = basic_orig
 
