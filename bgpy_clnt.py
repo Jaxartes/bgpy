@@ -309,63 +309,23 @@ class Client(object):
 
 ## ## ## Command line parameter handling
 
-class EqualParm(object):
-    """A command line parameter of the form name=value."""
+# name=value parameters we know about
+equal_parms = bmisc.EqualParms()
 
-    def __init__(self,
-                 desc,                      # descriptive text
-                 defv,                      # default value
-                 pars = None                # function to parse & validate input
-                ):
-        self.desc = desc
-        self.pars = pars
-        self.valu = self.defv = self.parse(defv)
+equal_parms.add("local-as", "Local AS Number", bmisc.EqualParms_parse_i32)
+equal_parms.parse("local-as=1") # default value
+equal_parms.add_alias("las", "local-as")
 
-    def parse(self, s):
-        """Parse a value for this parameter."""
-        if self.pars is None:       return(s)
-        else:                       return((self.pars)(self, s))
+equal_parms.add("router-id", "Router ID", bmisc.EqualParms_parse_i32_ip)
+equal_parms.parse("router-id=0.0.0.1") # default value
+equal_parms.add_alias("rtrid", "router-id")
 
-def EqualParm_parse_i32(ep, s):
-    """Parse a 32-bit unsigned integer in s as part of EqualParm ep
-    and return it."""
-    try:
-        x = int(s)
-        if x < 0 or x > 4294967295:
-            raise Exception()
-        return(x)
-    except:
-        raise Exception(ep.desc+" must be integer in 0-4294967295 range")
+equal_parms.add("tcp-hex", "Show TCP exchanges in hex",
+                bmisc.EqualParms_parse_i32)
+equal_parms.parse("tcp-hex=0") # default value
 
-def EqualParm_parse_i32_ip(ep, s):
-    """Parse something that might be represented as a 32-bit unsigned integer
-    or as an IPv4 address and return it (as an integer)."""
-    try:
-        return(EqualParm_parse_i32(ep, s))
-    except: pass
-    try:
-        bs = socket.inet_aton(s)
-            # Apparently, socket.inet_aton() tolerates some things I wouldn't
-            # expect it to.  Ah well.
-        x = 0
-        for b in bs:
-            x = (x << 8) + b
-        return(x)
-    except: pass
-    raise Exception(ep.desc+" must be either an IPv4 address in dotted"+
-                    " quad format, or an integer in 0-4294967295 range.")
-
-# dictionary of name=value parameters, will be filled in with their values
-equal_parms = {
-    "local-as":
-        EqualParm("Local AS Number", "1", EqualParm_parse_i32),
-    "las": "local-as",
-    "router-id":
-        EqualParm("Router ID", "0.0.0.1", EqualParm_parse_i32_ip),
-    "rtrid": "router-id",
-    "tcp-hex":
-        EqualParm("Show TCP exchanges in hex", "0", EqualParm_parse_i32),
-}
+equal_parms.add("dbg", "enable the specified debug flag",
+                None, lambda f: dbg.add(f))
 
 ## ## ## outer program skeleton
 
@@ -374,16 +334,9 @@ def usage():
     print("USAGE: python3 bgpy_clnt.py [name=value...]" +
           " [\"@command...\"] peer-address",
           file=sys.stderr)
-    print("Named parameters recognized", file=sys.stderr)
-    ns = list(equal_parms.keys())
-    ns.sort()
-    for n in ns:
-        if type(equal_parms[n]) is str:
-            print("\t"+n+": synonym for \""+equal_parms[n]+"\"",
-                  file=sys.stderr)
-        else:
-            print("\t"+n+": "+equal_parms[n].desc, file=sys.stderr)
-    print("\tdbg=flag: enable the specified debug flag 'flag'", file=sys.stderr)
+    print("Named parameters recognized:", file=sys.stderr)
+    for n, d in equal_parms.describe():
+        print("\t"+n+": "+d, file=sys.stderr)
     sys.exit(1)
 
 if len(sys.argv) < 2:
@@ -399,27 +352,11 @@ for a in sys.argv[1:-1]:
 
     # or else it's a name=value pair, match against equal_parms and parse
     try:
-        (n, v) = a.split("=", 1)
-    except: usage()
-    # handle alias if one
-    n0 = n
-    if n in equal_parms and type(equal_parms[n]) is str:
-        n = equal_parms[n]
-    # is this even a recognized parameter?
-    if n in equal_parms:
-        # setting listed in equal_parms
-        try:
-            equal_parms[n].valu = equal_parms[n].parse(v)
-        except Exception as e:
-            print(str(e), file=sys.stderr)
-            if dbg.estk:
-                print_exc(file=sys.stderr)
-            usage()
-    elif n == "dbg":
-        # add debug flag
-        dbg.add(v)
-    else:
-        print("Unknown parameter name \""+n0+"\"", file=sys.stderr)
+        equal_parms.parse(a)
+    except Exception as e:
+        print(str(e), file=sys.stderr)
+        if dbg.estk:
+            print_exc(file=sys.stderr)
         usage()
 
 peer_addr = sys.argv[-1]
@@ -440,9 +377,9 @@ except Exception as e:
         print_exc(file=sys.stderr)
 
 c = Client(sok = sok,
-           local_as = equal_parms["local-as"].valu,
-           router_id = equal_parms["router-id"].valu)
-if equal_parms["tcp-hex"].valu:
+           local_as = equal_parms["local-as"],
+           router_id = equal_parms["router-id"])
+if equal_parms["tcp-hex"]:
     # hex dump of all data sent/received over TCP
     tcp_hex_ipos = [0]
     tcp_hex_opos = [0]

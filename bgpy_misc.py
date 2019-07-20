@@ -2,7 +2,7 @@
 # bgpy_misc.py - begun 27 April 2019
 "Miscelleneous utility routines and classes used by bgpy."
 
-import time, sys
+import time, sys, socket
 
 class TimeOfRecord(object):
     """Keeps track of the current time, for use in time stamps and
@@ -559,7 +559,7 @@ class EqualParms(object):
 
     def add(self, name, desc, parser = None, storer = None):
         """Define a name 'name'.  'desc' is its description.
-        'parser' is a function to call to parse it (passed this EqualParm;
+        'parser' is a function to call to parse it (passed this EqualParms;
         the name; the previous value or None; and the string to parse).
         'storer' is used to store it,
         and may be omitted to just use 'self.values'."""
@@ -591,9 +591,10 @@ class EqualParms(object):
             v = arg
         if n not in self.seen:
             if n is None:
-                raise Exception("expected name=value pair")
+                raise Exception("expected name=value pair not \""+arg+"\"")
             else:
-                raise Exception("unrecognized name in name=value pair")
+                raise Exception("unrecognized name \"" + n +
+                                "\" in name=value pair")
         while n in self.aliases:
             n = self.aliases[n]
         if n in self.values:
@@ -608,3 +609,40 @@ class EqualParms(object):
         if n in self.storers:
             self.storers[n](v2)
 
+    def __getitem__(self, n):
+        "Look up the value last parsed for name 'n'."
+        while n in self.aliases:
+            n = self.aliases[n]
+        return(self.values[n])
+
+def EqualParms_parse_i32(ep, n, pv, s):
+    """'parser' routine for EqualParms() to parse a 32-bit unsigned
+    integer."""
+
+    try:
+        x = int(s)
+        if x < 0 or x > 4294967295:
+            raise Exception()
+        return(x)
+    except:
+        pass
+    raise Exception(n+" must be integer in 0-4294967295 range")
+
+def EqualParms_parse_i32_ip(ep, n, pv, s):
+    """'parser' routine for EqualParms() to parse a 32-bit unsigned integer
+    possibly in IPv4 address format."""
+
+    try:
+        return(EqualParms_parse_i32(ep, n, pv, s))
+    except: pass
+    try:
+        bs = socket.inet_aton(s)
+            # Apparently, socket.inet_aton() tolerates some things I wouldn't
+            # expect it to.  Ah well.
+        x = 0
+        for b in bs:
+            x = (x << 8) + b
+        return(x)
+    except: pass
+    raise Exception(n+" must be either an IPv4 address in dotted"+
+                    " quad format, or an integer in 0-4294967295 range.")
