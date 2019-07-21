@@ -621,18 +621,33 @@ class EqualParms(object):
             n = self.aliases[n]
         self.values[n] = v
 
-def EqualParms_parse_i32(ep, n, pv, s):
-    """'parser' routine for EqualParms() to parse a 32-bit unsigned
-    integer."""
+def EqualParms_parse_num_rng(t = int, tn = "integer", mn = None, mx = None):
+    """'parser' routine for EqualParms() to parse an integer and enforce
+    range checking."""
 
-    try:
-        x = int(s)
-        if x < 0 or x > 4294967295:
-            raise Exception()
-        return(x)
-    except:
-        pass
-    raise Exception(n+" must be integer in 0-4294967295 range")
+    rmsg = " must be " + tn
+    if mn is None:
+        if mx is not None:
+            rmsg += " <= " + str(mx)
+    else:
+        rmsg += " >= " + str(mn)
+        if mx is not None:
+            rmsg += " and <= " + str(mx)
+
+    def fn(ep, n, pv, s):
+        try:
+            x = t(s)
+            if mn is not None and x < mn: raise Exception()
+            if mx is not None and x > mx: raise Exception()
+            return(x)
+        except:
+            pass
+
+        raise Exception(n + rmsg)
+
+    return(fn)
+
+EqualParms_parse_i32 = EqualParms_parse_num_rng(mn = 0, mx = 2 ** 32 - 1)
 
 def EqualParms_parse_i32_ip(ep, n, pv, s):
     """'parser' routine for EqualParms() to parse a 32-bit unsigned integer
@@ -652,3 +667,23 @@ def EqualParms_parse_i32_ip(ep, n, pv, s):
     except: pass
     raise Exception(n+" must be either an IPv4 address in dotted"+
                     " quad format, or an integer in 0-4294967295 range.")
+
+def EqualParms_parse_Choosable(do_concat = False, t = "dec",
+                               prefix = "(", infix = "=", suffix = ")"):
+    """EqualParms_parse_Choosable()() -- Parser routine for use
+    with EqualParms(), parsing as a ChoosableRange().  'do_concat'
+    controls whether to parse a single one or combine them cumulatively
+    in a ChoosableConcat()."""
+
+    def fn(ep, n, pv, s):
+        cr = ChoosableRange(s, t = t,
+                            prefix = prefix, infix = infix, suffix = suffix)
+        if do_concat:
+            if pv is None:
+                pv = ChoosableConcat()
+            pv.add(cr)
+            return(pv)
+        else:
+            return(cr)
+
+    return(fn)

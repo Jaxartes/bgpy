@@ -154,17 +154,24 @@ def basic_orig(commanding, client, argv):
     cfg.parse("nh=10.0.0.1") # default value
 
     cfg.add("dest", "Destination IPv4 address range",
-            "XXX_parser", "XXX_setter")
+            bmisc.EqualParms_parse_Choosable(do_concat = True))
     cfg["dest"] = ChoosableConcat()
-    cfg.add("iupd", "Num updates in initial burst", "XXX parser")
+    cfg.add("iupd", "Num updates in initial burst",
+            bmisc.EqualParms_parse_num_rng(mn = 1))
     cfg["iupd"] = 20 # default value
-    cfg.add("bupd", "Num updates per subsequent burst", "XXX parser")
+    cfg.add("bupd", "Num updates per subsequent burst",
+            bmisc.EqualParms_parse_num_rng(mn = 1))
     cfg["bupd"] = 1 # default value
-    cfg.add("bint", "Seconds between bursts", "XXX parser")
+    cfg.add("bint", "Seconds between bursts",
+            bmisc.EqualParms_parse_num_rng(mn = 0.25, mx = 86400.0,
+                                           t = float, tn = "number"))
     cfg["bint"] = 10.0 # default value
-    cfg.add("slots", "Slots for tracking our routes", "XXX parser")
+    cfg.add("slots", "Slots for tracking our routes",
+            bmisc.EqualParms_parse_num_rng(mn = 1, mx = 1000000))
     cfg["slots"] = 100 # default value
-    cfg.add("newdest", "% probability of new destination", "XXX parser")
+    cfg.add("newdest", "% probability of new destination",
+            bmisc.EqualParms_parse_num_rng(mn = 0.0, mx = 100.0,
+                                           t = float, tn = "number"))
     cfg["newdest"] = 25
     cfg.add("aspath", "AS path specification", "XXX parser", "XXX setter")
     cfg["aspath"] = ChoosableConcat()
@@ -218,7 +225,7 @@ def basic_orig(commanding, client, argv):
                     dests_used.remove(s_dest[s])
                     s_dest[s] = None
                 while s_dest[s] is None or s_dest[s] in dests_used:
-                    s_dest[s] = prng.choice(cfg["dest"])
+                    s_dest[s] = "XXX further parsing needed"(prng.choice(cfg["dest"]))
                 dests_used.add(s_dest[s])
             attrs = []
             attrs.append("XXX origin")
