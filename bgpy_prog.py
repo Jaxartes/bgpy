@@ -211,6 +211,28 @@ def basic_orig(commanding, client, argv):
     # updates to go in current burst
     togo = cfg["iupd"]
 
+    ## ## wait for OPEN messages to have been exchanged
+    open_status = None
+    while True:
+        old_open_status = open_status
+        open_status = (client.open_recv is None,
+                       client.open_sent is None)
+        if open_status != old_open_status:
+            # something has happened, not enough to stop waiting,
+            # but maybe worth logging
+            if open_status[0]:
+                if open_status[1]:
+                    bmisc.stamprint("OPEN exchange is completed; proceeding")
+                    break # no need to wait any longer
+                else:
+                    bmisc.stamprint("OPEN received by not sent; waiting")
+            else:
+                if open_status[1]:
+                    bmisc.stamprint("OPEN sent but not received; waiting")
+                else:
+                    bmisc.stamprint("OPEN neither sent not received; waiting")
+        yield boper.NEXT_TIME
+
     ## ## main loop sending updates & waiting
     while True:
         # wait at least until the outbound buffer is clear; sometimes longer
@@ -239,12 +261,17 @@ def basic_orig(commanding, client, argv):
                 dests_used.add(s_dest[s])
             attrs = []
             attrs.append(brepr.attr_flag.Transitive,
-                         brepr.attr_code.ORIGIN,
-                         cfg["origin"])
+                         brepr.attr_code.ORIGIN, cfg["origin"])
             attrs.append("XXX as_path")
-            attrs.append("XXX next_hop")
-            if "XXX is_ibgp":
-                attrs.append("XXX local_pref")
+            attrs.append(brepr.attr_flag.Transitive,
+                         brepr.attr_code.NEXT_HOP, cfg["nh"])
+            if client.local_as == client.open_recv.my_as:
+                # for IBGP there's the "LOCAL_PREF" attribute;
+                # just use a default value of 100.
+                lp = bytearray()
+                bmisc.ba_put_be4(lp, 100)
+                attrs.append(brepr.attr_flag.Transitive,
+                             brepr.attr_code.LOCAL_PREF, lp)
             msg = brepr.BGPUpdate([], attrs, [s_dest[s]])
             client.wrpsok.send(msg)
             s_full[s] = True
