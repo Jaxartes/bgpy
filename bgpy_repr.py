@@ -85,6 +85,13 @@ attr_flag = ConstantSet(
                                 #                0 = one byte length
 )
 
+# Values of the BGP "ORIGIN" attribute defined in RFC 4271 4.3.
+origin_codes = ConstantSet(
+    ( "igp", "interior to the AS",              0 ),
+    ( "egp", "learned via EGP",                 1 ),
+    ( "incomplete", "learned by other means",   2 ),
+)
+
 # BGP Error Codes -- see RFC 4271, also
 # https://www.iana.org/assignments/bgp-parameters/bgp-parameters-3.csv
 err_code = ConstantSet(

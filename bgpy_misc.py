@@ -35,7 +35,7 @@ tor = TimeOfRecord()
 class FlagSet(object):
     """A set accessed as named attributes.  You can do foo.bar to check
     if "bar" is contained in "foo"; you can add and remove it; you don't
-    have to worry about "bar" was ever defined as being in "foo"."""
+    have to worry about whether "bar" was ever defined as being in "foo"."""
 
     def __init__(self):
         pass
@@ -685,5 +685,33 @@ def EqualParms_parse_Choosable(do_concat = False, t = "dec",
             return(pv)
         else:
             return(cr)
+
+    return(fn)
+
+def EqualParms_parse_Enum(cs, ordelim = None, numberable = True):
+    """'parser' routine for EqualParms() to parse an enumerated value
+    defined by a map or ConstantSet, cs.  This might be a single value
+    (if ordelim = None) or a set of bit values separated by ordelim.
+    May also take numbers if 'numerable = True'."""
+
+    def fn(ep, n, pv, s):
+        acc = 0
+        if ordelim is not None:
+            subs = s.split(ordelim)
+        else:
+            subs = [s]
+        for sub in subs:
+            if sub in cs:
+                acc |= cs[sub]
+            elif numerable:
+                try:
+                    acc |= int(sub)
+                except:
+                    raise Exception("In '"+str(n)+"', cannot parse '"+str(sub)+
+                                    "' as name or number")
+            else:
+                raise Exception("In '"+str(n)+"', cannot parse '"+str(sub)+
+                                "' as named value")
+        return(acc)
 
     return(fn)

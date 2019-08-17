@@ -145,6 +145,12 @@ def basic_orig(commanding, client, argv):
                 Likewise "cseq," and "cset," prefixes make
                 it AS_CONFED_SEQUENCE & AS_CONFED_SET (see RFC 5065).
             An empty AS path is permitted.
+        origin=incomplete
+            origin of path information; one of the following values defined
+            by RFC 4271 4.3 & 5.1.1:
+                igp
+                egp
+                incomplete
     """
 
     ## configuration via name-value pairs
@@ -173,8 +179,12 @@ def basic_orig(commanding, client, argv):
             bmisc.EqualParms_parse_num_rng(mn = 0.0, mx = 100.0,
                                            t = float, tn = "number"))
     cfg["newdest"] = 25
-    cfg.add("aspath", "AS path specification", "XXX parser", "XXX setter")
+    cfg.add("aspath", "AS path specification",
+            bmisc.EqualParms_parse_Choosable(do_concat = True))
     cfg["aspath"] = ChoosableConcat()
+    cfg.add("origin", "ORIGIN path attribute",
+            bmisc.EqualParms_parse_enum(brepr.origin_codes))
+    cfg.parse("origin=incomplete")
 
     for arg in argv:
         cfg.parse(arg)
@@ -228,7 +238,9 @@ def basic_orig(commanding, client, argv):
                     s_dest[s] = "XXX further parsing needed"(prng.choice(cfg["dest"]))
                 dests_used.add(s_dest[s])
             attrs = []
-            attrs.append("XXX origin")
+            attrs.append(brepr.attr_flag.Transitive,
+                         brepr.attr_code.ORIGIN,
+                         cfg["origin"])
             attrs.append("XXX as_path")
             attrs.append("XXX next_hop")
             if "XXX is_ibgp":
