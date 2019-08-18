@@ -201,13 +201,13 @@ def basic_orig(commanding, client, argv):
             bmisc.EqualParms_parse_Choosable(do_concat = True))
     cfg["dest"] = bmisc.ChoosableConcat()
     cfg.add("iupd", "Num updates in initial burst",
-            bmisc.EqualParms_parse_num_rng(mn = 1))
+            bmisc.EqualParms_parse_num_rng(mn = 0))
     cfg["iupd"] = 20 # default value
     cfg.add("bupd", "Num updates per subsequent burst",
-            bmisc.EqualParms_parse_num_rng(mn = 1))
+            bmisc.EqualParms_parse_num_rng(mn = 0))
     cfg["bupd"] = 1 # default value
     cfg.add("bint", "Seconds between bursts",
-            bmisc.EqualParms_parse_num_rng(mn = 0.25, mx = 86400.0,
+            bmisc.EqualParms_parse_num_rng(mn = 0.1, mx = 86400.0,
                                            t = float, tn = "number"))
     cfg["bint"] = 10.0 # default value
     cfg.add("slots", "Slots for tracking our routes",
@@ -289,8 +289,11 @@ def basic_orig(commanding, client, argv):
         if togo > 0:
             yield boper.WHILE_TX_PENDING
         else:
-            yield cfg["bint"]
+            bmisc.stamprint(progname +
+                            ": waiting for "+repr(cfg["bint"])+" seconds")
+            yield(cfg["bint"] + bmisc.tor.get())
             togo = cfg["bupd"]
+            continue
 
         # pick a "slot" to update; *what* we do depends on what's in the slot
         s = prng.randint(0, cfg["slots"] - 1)
@@ -339,6 +342,9 @@ def basic_orig(commanding, client, argv):
             msg = brepr.BGPUpdate(client.env, [], attrs, [s_dest[s]])
             client.wrpsok.send(msg)
             s_full[s] = True
+
+        # count down
+        togo -= 1
 
 _programmes["basic_orig"] = basic_orig
 
