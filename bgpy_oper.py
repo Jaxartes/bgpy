@@ -24,7 +24,7 @@ class SocketWrap(object):
     with select() too.
     """
 
-    __slots__ = ["sok", "env", "ipnd", "opnd", "ista"]
+    __slots__ = ["sok", "env", "ipnd", "opnd", "ista", "ibroke", "obroke"]
     def __init__(self, sok, env):
         self.sok = sok      # connected socket
         self.env = env      # brepr.BGPEnv used in parsing
@@ -33,8 +33,13 @@ class SocketWrap(object):
         self.ista = False   # input status:
                             #       True -- there *may* be a message to parse
                             #       False -- there's no message to parse
+        self.ibroke = False # set when connection is broken on inbound side
+        self.obroke = False # set when connection is broken on outbound side
     def send(self, msg):
         "Queue a BGPMessage for sending"
+        if self.obroke:
+            bmisc.stamprint("SocketWrap.send(): disabled because connection" +
+                            " was closed.")
         self.opnd += msg.raw
         bmisc.stamprint("Send: " + str(msg))
         if dbg.sokw:
@@ -73,18 +78,27 @@ class SocketWrap(object):
     def want_recv(self):
         """Indicates whether there's any point to receiving anything; use when
         preparing lists for select()"""
-        return(True)
+        return(not self.ibroke)
     def want_send(self):
         """Indicates whether there's anything to send; use when preparing
         lists for select()"""
-        return(len(self.opnd) > 0)
+        return(len(self.opnd) > 0 and not self.obroke)
     def able_recv(self):
         """Called when select() indicates this socket can receive something.
         Returns True normally, False if socket closed."""
         if dbg.sokw:
             bmisc.stamprint("SocketWrap.able_recv() called")
+        if self.ibroke:
+            bmisc.stamprint("SocketWrap.able_recv() doing nothing: conn broken")
+            return
         get = 8 # XXX change this to something bigger after testing
-        got = self.sok.recv(get)
+        try:
+            got = self.sok.recv(get)
+        except BrokenPipeError:
+            got = bytes()
+        except ConnectionResetError:
+            got = bytes()
+
         if len(got):
             self.ipnd += got        # we got something: buffer it
             self.ista = True        # and it *might* be a message
@@ -92,21 +106,33 @@ class SocketWrap(object):
                 self.env.data_cb(self, "r", got)
         else:
             # Connection has been closed
+            self.ibroke = True
+            if dbg.sokw:
+                bmisc.stamprint("connection closure detected on recv")
             return(False)
         return(True)
     def able_send(self):
         "Called when select() indicates this socket can send something"
         if dbg.sokw:
             bmisc.stamprint("SocketWrap.able_send() called")
-        sent = self.sok.send(self.opnd)
+        if self.obroke:
+            bmisc.stamprint("SocketWrap.able_send() doing nothing: conn broken")
+            return
+        try:
+            sent = self.sok.send(self.opnd)
+        except BrokenPipeError:
+            sent = 0
+        except ConnectionResetError:
+            sent = 0
         if sent > 0:
             # we sent something, remove it from the output buffer
             if self.env.data_cb is not None:
                 self.env.data_cb(self, "w", self.opnd[:sent])
             self.opnd = self.opnd[sent:]
         else:
-            # this is a problem; what do we do about it?
-            raise Exception("XXX")
+            self.obroke = True
+            if dbg.sokw:
+                bmisc.stamprint("connection closure detected on send")
 
 ## ## ## special tokens
 

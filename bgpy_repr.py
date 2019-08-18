@@ -553,12 +553,7 @@ class BGPUpdate(BGPMessage):
                 raise Exception("BGPUpdate too many attributes to fit")
             bmisc.ba_put_be2(ba, len(baa))
             ba += baa
-            ban = bytearray()
-            BGPUpdate.format_routes(env, ban, self.nlri)
-            if len(ban) > 65535:
-                raise Exception("BGPUpdate too many advertised routes to fit")
-            bmisc.ba_put_be2(ba, len(ban))
-            ba += ban
+            BGPUpdate.format_routes(env, ba, self.nlri)
             BGPMessage.__init__(self, env, msg_type.UPDATE, ba)
         else:
             raise Exception("BGPUpdate() bad parameters")

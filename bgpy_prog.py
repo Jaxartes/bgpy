@@ -261,7 +261,7 @@ def basic_orig(commanding, client, argv):
             if open_status[0]:
                 if open_status[1]:
                     bmisc.stamprint(progname +
-                                    "OPEN exchange is completed; proceeding")
+                                    ": OPEN exchange is completed; proceeding")
                     break # no need to wait any longer
                 else:
                     bmisc.stamprint(progname +
@@ -332,6 +332,10 @@ def basic_orig(commanding, client, argv):
                                                 brepr.attr_flag.Transitive,
                                                 brepr.attr_code.LOCAL_PREF,
                                                 lp))
+            attrs.append(brepr.BGPAttribute(client.env,
+                                            brepr.attr_flag.Transitive,
+                                            brepr.attr_code.NEXT_HOP,
+                                            cfg["nh"]))
             msg = brepr.BGPUpdate(client.env, [], attrs, [s_dest[s]])
             client.wrpsok.send(msg)
             s_full[s] = True
