@@ -151,6 +151,8 @@ def basic_orig(commanding, client, argv):
     The configuration is in name=value pairs, as follows, with examples:
         nh=10.0.0.1
             IPv4 address to use as next hop for all routes; default 10.0.0.1.
+            Can take range expressions, example 10.0.0.(2-5), but in many
+            scenarios having a diversity of nexthops is abnormal.
         dest=10.(3-5).0.0/(16-20)
             Address/masklength specification of destinations to generate
             routes for.  Need at least one, can have more.
@@ -194,8 +196,9 @@ def basic_orig(commanding, client, argv):
     progname = "basic_orig"
     cfg = bmisc.EqualParms()
 
-    cfg.add("nh", "Next hop IPv4 address", bmisc.EqualParms_parse_i32_ip)
-    cfg.parse("nh=10.0.0.1") # default value
+    cfg.add("nh", "Next hop IPv4 address",
+            bmisc.EqualParms_parse_Choosable(do_concat = True))
+    cfg["nh"] = bmisc.ChoosableConcat()
 
     cfg.add("dest", "Destination IPv4 address range",
             bmisc.EqualParms_parse_Choosable(do_concat = True))
@@ -230,6 +233,9 @@ def basic_orig(commanding, client, argv):
     if len(cfg["dest"]) < cfg["slots"]:
         raise Exception("\"basic_orig\" requires at least as many destinations"+
                         " as \"slots\"")
+
+    if not cfg["nh"]:
+        cfg["nh"].add(bmisc.ChoosableRange("10.0.0.1"))
 
     ## ## storage of current state
 
@@ -335,10 +341,11 @@ def basic_orig(commanding, client, argv):
                                                 brepr.attr_flag.Transitive,
                                                 brepr.attr_code.LOCAL_PREF,
                                                 lp))
+            nh_str = prng.choice(cfg["nh"])
             attrs.append(brepr.BGPAttribute(client.env,
                                             brepr.attr_flag.Transitive,
                                             brepr.attr_code.NEXT_HOP,
-                                            cfg["nh"]))
+                                            bmisc.parse_ipv4(nh_str)))
             msg = brepr.BGPUpdate(client.env, [], attrs, [s_dest[s]])
             client.wrpsok.send(msg)
             s_full[s] = True
