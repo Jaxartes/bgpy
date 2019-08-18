@@ -154,6 +154,7 @@ def basic_orig(commanding, client, argv):
     """
 
     ## configuration via name-value pairs
+    progname = "basic_orig"
     cfg = bmisc.EqualParms()
 
     cfg.add("nh", "Next hop IPv4 address", bmisc.EqualParms_parse_i32_ip)
@@ -215,22 +216,26 @@ def basic_orig(commanding, client, argv):
     open_status = None
     while True:
         old_open_status = open_status
-        open_status = (client.open_recv is None,
-                       client.open_sent is None)
+        open_status = (client.open_recv is not None,
+                       client.open_sent is not None)
         if open_status != old_open_status:
             # something has happened, not enough to stop waiting,
             # but maybe worth logging
             if open_status[0]:
                 if open_status[1]:
-                    bmisc.stamprint("OPEN exchange is completed; proceeding")
+                    bmisc.stamprint(progname +
+                                    "OPEN exchange is completed; proceeding")
                     break # no need to wait any longer
                 else:
-                    bmisc.stamprint("OPEN received by not sent; waiting")
+                    bmisc.stamprint(progname +
+                                    ": OPEN received but not sent; waiting")
             else:
                 if open_status[1]:
-                    bmisc.stamprint("OPEN sent but not received; waiting")
+                    bmisc.stamprint(progname +
+                                    ": OPEN sent but not received; waiting")
                 else:
-                    bmisc.stamprint("OPEN neither sent not received; waiting")
+                    bmisc.stamprint(progname +
+                                    ": OPEN neither sent not received; waiting")
         yield boper.NEXT_TIME
 
     ## ## main loop sending updates & waiting
@@ -257,22 +262,31 @@ def basic_orig(commanding, client, argv):
                     dests_used.remove(s_dest[s])
                     s_dest[s] = None
                 while s_dest[s] is None or s_dest[s] in dests_used:
-                    s_dest[s] = "XXX further parsing needed"(prng.choice(cfg["dest"]))
+                    # pick & parse one of the values in cfg["dest"]
+                    # then we'll see if it's one we're using already
+                    deststr = prng.choice(cfg["dest"])
+                    s_dest[s] = brepr.IPv4Prefix(client.env, deststr)
                 dests_used.add(s_dest[s])
             attrs = []
-            attrs.append(brepr.attr_flag.Transitive,
-                         brepr.attr_code.ORIGIN, cfg["origin"])
+            attrs.append(brepr.BGPAttribute(client.env,
+                                            brepr.attr_flag.Transitive,
+                                            brepr.attr_code.ORIGIN,
+                                            bytes([cfg["origin"]])))
             attrs.append("XXX as_path")
-            attrs.append(brepr.attr_flag.Transitive,
-                         brepr.attr_code.NEXT_HOP, cfg["nh"])
+            attrs.append(brepr.BGPAttribute(client.env,
+                                            brepr.attr_flag.Transitive,
+                                            brepr.attr_code.NEXT_HOP,
+                                            cfg["nh"]))
             if client.local_as == client.open_recv.my_as:
                 # for IBGP there's the "LOCAL_PREF" attribute;
                 # just use a default value of 100.
                 lp = bytearray()
                 bmisc.ba_put_be4(lp, 100)
-                attrs.append(brepr.attr_flag.Transitive,
-                             brepr.attr_code.LOCAL_PREF, lp)
-            msg = brepr.BGPUpdate([], attrs, [s_dest[s]])
+                attrs.append(brepr.BGPAttribute(client.env,
+                                                brepr.attr_flag.Transitive,
+                                                brepr.attr_code.LOCAL_PREF,
+                                                lp))
+            msg = brepr.BGPUpdate(client.env, [], attrs, [s_dest[s]])
             client.wrpsok.send(msg)
             s_full[s] = True
 

@@ -660,20 +660,17 @@ def EqualParms_parse_num_rng(t = int, tn = "integer", mn = None, mx = None):
 EqualParms_parse_i32 = EqualParms_parse_num_rng(mn = 0, mx = 2 ** 32 - 1)
 
 def EqualParms_parse_i32_ip(ep, n, pv, s):
-    """'parser' routine for EqualParms() to parse a 32-bit unsigned integer
-    possibly in IPv4 address format."""
+    """'parser' routine for EqualParms() to parse an IPv4 address (into
+    four bytes); will also take 32-bit unsigned integers."""
 
     try:
-        return(EqualParms_parse_i32(ep, n, pv, s))
+        return(parse_ipv4(s))
     except: pass
     try:
-        bs = socket.inet_aton(s)
-            # Apparently, socket.inet_aton() tolerates some things I wouldn't
-            # expect it to.  Ah well.
-        x = 0
-        for b in bs:
-            x = (x << 8) + b
-        return(x)
+        i = EqualParms_parse_i32(ep, n, pv, s)
+        ba = bytearray()
+        ba.ba_put_be4(i)
+        return(bytes(ba))
     except: pass
     raise Exception(n+" must be either an IPv4 address in dotted"+
                     " quad format, or an integer in 0-4294967295 range.")
@@ -725,3 +722,21 @@ def EqualParms_parse_enum(cs, ordelim = None, numberable = True):
         return(acc)
 
     return(fn)
+
+def parse_ipv4(s):
+    """parse_ipv4() parses an IPv4 address from string form into
+    a byte array.  Stricter than socket.inet_aton()."""
+
+    subs = s.split(".")
+    if len(subs) != 4:
+        raise Exception(repr(s)+" is not four dot-delimited components")
+    ba = bytearray()
+    for sub in subs:
+        try:
+            i = int(sub)
+        except:
+            i = -1 # intentionally bogus
+        if i < 0 or i > 255:
+            raise Exception(repr(sub)+" in "+repr(s)+" is not a 0-255 integer")
+        ba.append(i)
+    return(bytes(ba))

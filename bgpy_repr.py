@@ -290,7 +290,16 @@ class IPv4Prefix(BGPThing):
     __slots__ = ["pfx", "ml"]
     def __init__(self, env, *args):
         """Initialize either from raw byte data or a prefix & masklen."""
-        if len(args) == 1:
+
+        if len(args) == 1 and type(args[0]) is str:
+            # string; parse it
+            pfx_ml = args[0].split("/", 1)
+            if len(pfx_ml) < 2:
+                pfx_ml.append("32")
+            pfx = bmisc.parse_ipv4(pfx_ml[0])
+            ml = int(pfx_ml[1])
+            self.__init__(env, pfx, ml)
+        elif len(args) == 1:
             # raw binary data; parse it
             BGPThing.__init__(self, env, args[0])
             pc = ParseCtx(self.raw)
@@ -305,6 +314,7 @@ class IPv4Prefix(BGPThing):
             self.pfx = bytes(pc)
         elif len(args) == 2:
             # prefix & masklen; store it
+            # XXX check that the prefix doesn't extend beyond the masklen
             self.pfx = bytes(args[0])
             self.ml = int(args[1])
             if self.ml < 0 or self.ml > 32:
