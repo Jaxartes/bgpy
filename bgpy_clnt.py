@@ -195,7 +195,7 @@ class Commanding(object):
                 run_it = True
             elif t is boper.WHILE_TX_PENDING:
                 # Run if the outbound buffer is empty.
-                run_it = (len(self.wrpsok.opnd) <= 0)
+                run_it = (len(self.client.wrpsok.opnd) <= 0)
             elif t <= now:
                 # Now it's time.
                 run_it = True
@@ -220,7 +220,7 @@ class Commanding(object):
                 pass # waiting until something else wakes us up
             elif t is boper.WHILE_TX_PENDING:
                 # We're to wait for the outbound buffer to empty.
-                if len(self.wrpsok.opnd) <= 0:
+                if len(self.client.wrpsok.opnd) <= 0:
                     time_next = 0 # already happened
                 else:
                     # Hasn't happened yet; we'll come back here by the time

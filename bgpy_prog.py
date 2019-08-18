@@ -161,7 +161,7 @@ def basic_orig(commanding, client, argv):
 
     cfg.add("dest", "Destination IPv4 address range",
             bmisc.EqualParms_parse_Choosable(do_concat = True))
-    cfg["dest"] = ChoosableConcat()
+    cfg["dest"] = bmisc.ChoosableConcat()
     cfg.add("iupd", "Num updates in initial burst",
             bmisc.EqualParms_parse_num_rng(mn = 1))
     cfg["iupd"] = 20 # default value
@@ -181,7 +181,7 @@ def basic_orig(commanding, client, argv):
     cfg["newdest"] = 25
     cfg.add("aspath", "AS path specification",
             bmisc.EqualParms_parse_Choosable(do_concat = True))
-    cfg["aspath"] = ChoosableConcat()
+    cfg["aspath"] = bmisc.ChoosableConcat()
     cfg.add("origin", "ORIGIN path attribute",
             bmisc.EqualParms_parse_enum(brepr.origin_codes))
     cfg.parse("origin=incomplete")

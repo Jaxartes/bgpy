@@ -151,14 +151,15 @@ class ConstantSet(object):
     def __init__(self, *args, **kvattr):
         """Create a constant set with specified names and values;
         or with tuples of internal name, long name, value."""
+        self._dict = dict()
         self._printable_names = dict()
         self._reverse = dict()
         for (k, pn, v) in args:
-            self.__setattr__(k, v)
+            self._dict[k] = v
             self._printable_names[k] = pn
             self._reverse[v] = k
         for k in kvattr:
-            self.__setattr__(k, kvattr[k])
+            self._dict[k] = kvattr[k]
             self._printable_names[k] = k
             self._reverse[kvattr[k]] = k
 
@@ -175,6 +176,15 @@ class ConstantSet(object):
             return(self._printable_names[self._reverse[value]])
         else:
             return(repr(value))
+
+    def __getitem__(self, key):
+        return(self._dict[key])
+
+    def __contains__(self, key):
+        return(key in self._dict)
+
+    def __getattr__(self, key):
+        return(self._dict[key])
 
 class ParseCtx(object):
     """Context information for use while parsing BGP messages in binary form.
@@ -669,7 +679,7 @@ def EqualParms_parse_i32_ip(ep, n, pv, s):
                     " quad format, or an integer in 0-4294967295 range.")
 
 def EqualParms_parse_Choosable(do_concat = False, t = "dec",
-                               prefix = "(", infix = "=", suffix = ")"):
+                               prefix = "(", infix = "-", suffix = ")"):
     """EqualParms_parse_Choosable()() -- Parser routine for use
     with EqualParms(), parsing as a ChoosableRange().  'do_concat'
     controls whether to parse a single one or combine them cumulatively
@@ -688,7 +698,7 @@ def EqualParms_parse_Choosable(do_concat = False, t = "dec",
 
     return(fn)
 
-def EqualParms_parse_Enum(cs, ordelim = None, numberable = True):
+def EqualParms_parse_enum(cs, ordelim = None, numberable = True):
     """'parser' routine for EqualParms() to parse an enumerated value
     defined by a map or ConstantSet, cs.  This might be a single value
     (if ordelim = None) or a set of bit values separated by ordelim.
