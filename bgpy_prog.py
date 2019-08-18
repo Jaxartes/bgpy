@@ -107,6 +107,43 @@ _programmes["idler"] = idler
 
 ## ## ## Canned programme: "basic_orig"
 
+def basic_orig_parse_as_path(env, s):
+    """Parse an AS path for the "basic_orig" canned programme, in the
+    notation described there."""
+
+    ba = bytearray()
+    if len(s) == 0:
+        segs = [] # special case: empty
+    else:
+        segs = s.split("/")
+
+    for seg in segs:
+        ases = seg.split(",")
+        if ases[0] == "set":
+            seg_type = brepr.path_seg_type.AS_SET
+            ases[:1] = []
+        elif ases[0] == "cseq":
+            seg_type = brepr.path_seg_type.AS_CONFED_SEQUENCE
+            ases[:1] = []
+        elif ases[0] == "cset":
+            seg_type = brepr.path_seg_type.AS_CONFED_SET
+            ases[:1] = []
+        else:
+            seg_type = brepr.path_seg_type.AS_SEQUENCE
+
+        if len(ases) > 255:
+            raise Exception("Too many AS numbers in a sequence")
+        ba.append(seg_type)
+        ba.append(len(ases))
+        for as_str in ases:
+            as_num = int(as_str)
+            if as_num < 1 or as_num > 65535:
+                raise Exception("AS number "+str(as_num)+
+                                " out of range for 16 bits")
+            ba.ba_put_be2(as_num)
+
+    return(ba)
+
 def basic_orig(commanding, client, argv):
     """ "basic_orig" canned programme: Sends Updates carring IPv4 routes
     pseudorandomly generated according to some simple configuration.
@@ -145,12 +182,12 @@ def basic_orig(commanding, client, argv):
                 Likewise "cseq," and "cset," prefixes make
                 it AS_CONFED_SEQUENCE & AS_CONFED_SET (see RFC 5065).
             An empty AS path is permitted.
-        origin=incomplete
+        origin=INCOMPLETE
             origin of path information; one of the following values defined
             by RFC 4271 4.3 & 5.1.1:
-                igp
-                egp
-                incomplete
+                IGP
+                EGP
+                INCOMPLETE
     """
 
     ## configuration via name-value pairs
@@ -184,8 +221,8 @@ def basic_orig(commanding, client, argv):
             bmisc.EqualParms_parse_Choosable(do_concat = True))
     cfg["aspath"] = bmisc.ChoosableConcat()
     cfg.add("origin", "ORIGIN path attribute",
-            bmisc.EqualParms_parse_enum(brepr.origin_codes))
-    cfg.parse("origin=incomplete")
+            bmisc.EqualParms_parse_enum(brepr.origin_code))
+    cfg.parse("origin=INCOMPLETE")
 
     for arg in argv:
         cfg.parse(arg)
@@ -239,6 +276,14 @@ def basic_orig(commanding, client, argv):
         yield boper.NEXT_TIME
 
     ## ## main loop sending updates & waiting
+    if len(cfg["aspath"]) < 1:
+        if client.local_as == client.open_recv.my_as:
+            # IBGP: default as path is empty
+            cfg["aspath"].add(bmisc.ChoosableRange(""))
+        else:
+            # EBGP: default as path has just our own AS number
+            cfg["aspath"].add(bmisc.ChoosableRange(str(client.local_as)))
+
     while True:
         # wait at least until the outbound buffer is clear; sometimes longer
         if togo > 0:
@@ -251,7 +296,7 @@ def basic_orig(commanding, client, argv):
         s = prng.randint(0, cfg["slots"] - 1)
         if s_full[s]:
             # Slot is full: make it empty by withdrawing the route.
-            msg = brepr.BGPUpdate([s_dest[s]], [], [])
+            msg = brepr.BGPUpdate(client.env, [s_dest[s]], [], [])
             client.wrpsok.send(msg)
             s_full[s] = False
         else:
@@ -272,11 +317,12 @@ def basic_orig(commanding, client, argv):
                                             brepr.attr_flag.Transitive,
                                             brepr.attr_code.ORIGIN,
                                             bytes([cfg["origin"]])))
-            attrs.append("XXX as_path")
+            aspath = basic_orig_parse_as_path(client.env,
+                                              prng.choice(cfg["aspath"]))
             attrs.append(brepr.BGPAttribute(client.env,
                                             brepr.attr_flag.Transitive,
-                                            brepr.attr_code.NEXT_HOP,
-                                            cfg["nh"]))
+                                            brepr.attr_code.AS_PATH,
+                                            aspath))
             if client.local_as == client.open_recv.my_as:
                 # for IBGP there's the "LOCAL_PREF" attribute;
                 # just use a default value of 100.

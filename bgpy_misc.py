@@ -699,7 +699,7 @@ def EqualParms_parse_enum(cs, ordelim = None, numberable = True):
     """'parser' routine for EqualParms() to parse an enumerated value
     defined by a map or ConstantSet, cs.  This might be a single value
     (if ordelim = None) or a set of bit values separated by ordelim.
-    May also take numbers if 'numerable = True'."""
+    May also take numbers if 'numberable = True'."""
 
     def fn(ep, n, pv, s):
         acc = 0
@@ -710,7 +710,7 @@ def EqualParms_parse_enum(cs, ordelim = None, numberable = True):
         for sub in subs:
             if sub in cs:
                 acc |= cs[sub]
-            elif numerable:
+            elif numberable:
                 try:
                     acc |= int(sub)
                 except:
