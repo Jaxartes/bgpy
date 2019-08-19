@@ -254,6 +254,7 @@ def basic_orig(commanding, client, argv):
 
     # updates to go in current burst
     togo = cfg["iupd"]
+    bmisc.stamprint(progname + ": sending " + str(togo) + " initial updates")
 
     ## ## wait for OPEN messages to have been exchanged
     open_status = None
@@ -299,6 +300,8 @@ def basic_orig(commanding, client, argv):
                             ": waiting for "+repr(cfg["bint"])+" seconds")
             yield(cfg["bint"] + bmisc.tor.get())
             togo = cfg["bupd"]
+            bmisc.stamprint(progname + ": sending " + str(togo) +
+                            " periodic updates")
             continue
 
         # pick a "slot" to update; *what* we do depends on what's in the slot

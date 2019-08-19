@@ -24,7 +24,8 @@ class SocketWrap(object):
     with select() too.
     """
 
-    __slots__ = ["sok", "env", "ipnd", "opnd", "ista", "ibroke", "obroke"]
+    __slots__ = ["sok", "env", "ipnd", "opnd", "ista",
+                 "ibroke", "obroke", "quiet"]
     def __init__(self, sok, env):
         self.sok = sok      # connected socket
         self.env = env      # brepr.BGPEnv used in parsing
@@ -35,13 +36,15 @@ class SocketWrap(object):
                             #       False -- there's no message to parse
         self.ibroke = False # set when connection is broken on inbound side
         self.obroke = False # set when connection is broken on outbound side
+        self.quiet = False  # set to reduce output
     def send(self, msg):
         "Queue a BGPMessage for sending"
         if self.obroke:
             bmisc.stamprint("SocketWrap.send(): disabled because connection" +
                             " was closed.")
         self.opnd += msg.raw
-        bmisc.stamprint("Send: " + str(msg))
+        if not self.quiet:
+            bmisc.stamprint("Send: " + str(msg))
         if dbg.sokw:
             bmisc.stamprint("SocketWrap.send(): " + repr(len(msg.raw)) +
                             " bytes added to queue, => " + repr(len(self.opnd)))
@@ -73,7 +76,8 @@ class SocketWrap(object):
             bmisc.stamprint("SocketWrap.recv(): message, " +
                             repr(ml) + " bytes")
         msg = brepr.BGPMessage.parse(self.env, ParseCtx(mr))
-        bmisc.stamprint("Recv: " + str(msg))
+        if not self.quiet:
+            bmisc.stamprint("Recv: " + str(msg))
         return(msg)
     def want_recv(self):
         """Indicates whether there's any point to receiving anything; use when
@@ -133,6 +137,9 @@ class SocketWrap(object):
             self.obroke = True
             if dbg.sokw:
                 bmisc.stamprint("connection closure detected on send")
+    def set_quiet(self, q):
+        "Enable/disable the quiet flag that reduces output"
+        self.quiet = q
 
 ## ## ## special tokens
 

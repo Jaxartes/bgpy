@@ -327,6 +327,9 @@ equal_parms.parse("tcp-hex=0") # default value
 equal_parms.add("dbg", "enable the specified debug flag",
                 None, lambda f: dbg.add(f))
 
+equal_parms.add("quiet", "reduce output", bmisc.EqualParms_parse_i32)
+equal_parms.parse("quiet=0")
+
 ## ## ## outer program skeleton
 
 # command line parameters
@@ -379,6 +382,7 @@ except Exception as e:
 c = Client(sok = sok,
            local_as = equal_parms["local-as"],
            router_id = equal_parms["router-id"])
+c.wrpsok.set_quiet(bool(equal_parms["quiet"]))
 if equal_parms["tcp-hex"]:
     # hex dump of all data sent/received over TCP
     tcp_hex_ipos = [0]
