@@ -669,7 +669,7 @@ def EqualParms_parse_i32_ip(ep, n, pv, s):
     try:
         i = EqualParms_parse_i32(ep, n, pv, s)
         ba = bytearray()
-        ba.ba_put_be4(i)
+        bmisc.ba_put_be4(ba, i)
         return(bytes(ba))
     except: pass
     raise Exception(n+" must be either an IPv4 address in dotted"+

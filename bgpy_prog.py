@@ -140,7 +140,7 @@ def basic_orig_parse_as_path(env, s):
             if as_num < 1 or as_num > 65535:
                 raise Exception("AS number "+str(as_num)+
                                 " out of range for 16 bits")
-            ba.ba_put_be2(as_num)
+            bmisc.ba_put_be2(ba, as_num)
 
     return(ba)
 
