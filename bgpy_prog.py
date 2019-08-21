@@ -237,25 +237,6 @@ def basic_orig(commanding, client, argv):
     if not cfg["nh"]:
         cfg["nh"].add(bmisc.ChoosableRange("10.0.0.1"))
 
-    ## ## storage of current state
-
-    # pseudorandom number generator
-    prng = random.Random(time.time())
-
-    # advertised route slots
-    s_full = [] # True for each slot that's full
-    s_dest = [] # destination used for this slot, or None if unassigned
-    for slot in range(cfg["slots"]):
-        s_full.append(False)
-        s_dest.append(None)
-
-    # destinations used - to avoid duplication
-    dests_used = set()
-
-    # updates to go in current burst
-    togo = cfg["iupd"]
-    bmisc.stamprint(progname + ": sending " + str(togo) + " initial updates")
-
     ## ## wait for OPEN messages to have been exchanged
     open_status = None
     while True:
@@ -281,6 +262,25 @@ def basic_orig(commanding, client, argv):
                     bmisc.stamprint(progname +
                                     ": OPEN neither sent not received; waiting")
         yield boper.NEXT_TIME
+
+    ## ## storage of current state
+
+    # pseudorandom number generator
+    prng = random.Random(time.time())
+
+    # advertised route slots
+    s_full = [] # True for each slot that's full
+    s_dest = [] # destination used for this slot, or None if unassigned
+    for slot in range(cfg["slots"]):
+        s_full.append(False)
+        s_dest.append(None)
+
+    # destinations used - to avoid duplication
+    dests_used = set()
+
+    # updates to go in current burst
+    togo = cfg["iupd"]
+    bmisc.stamprint(progname + ": sending " + str(togo) + " initial updates")
 
     ## ## main loop sending updates & waiting
     if len(cfg["aspath"]) < 1:
