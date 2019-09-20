@@ -381,6 +381,79 @@ def basic_orig(commanding, client, argv):
 
 _programmes["basic_orig"] = basic_orig
 
+## ## ## Canned programme: "notifier"
+
+def notifier(commanding, client, argv):
+    """ "notifier" canned program: sends a Notification.
+    Arguments in argv:
+        notification code (numeric; example: 6 for "Cease")
+        notification subcode (numeric; depends on main code)
+        (optional) data (hexadecimal, or "text:" followed by text)
+        (optional) seconds before exiting, if at all
+    """
+
+    # Parse and check argv[]
+    if len(argv) < 2:
+        raise Exception("notifier arguments error: too few")
+    elif len(argv) > 4:
+        raise Exception("notifier arguments error: too many")
+    code = subcode = termsec = None
+    try:
+        code = int(argv[0])
+    except: pass
+    if code is None or code < 0 or code > 255:
+        raise Exception("notifier arguments error:"+
+                        " code must be integer 0-255")
+    try:
+        subcode = int(argv[1])
+    except: pass
+    if subcode is None or subcode < 0 or subcode > 255:
+        raise Exception("notifier arguments error:"+
+                        " subcode must be integer 0-255")
+    if len(argv) < 3:
+        # missing data: treat as empty
+        data = bytes()
+    elif argv[2][:5] == "text:":
+        # literal text
+        data = bytes(argv[2][5:], "utf-8")
+    else:
+        # hexadecimal
+        if len(argv[2]) & 1:
+            raise Exception("notifier arguments error:"+
+                            " odd length hex data")
+        ba = bytearray()
+        for i in range(0, len(argv[2]), 2):
+            b = None
+            try:
+                b = int(argv[2][i:(i+2)], base=16)
+            except: pass
+            if b is None:
+                raise Exception("notifier arguments error:"+
+                                " bad hex data")
+            ba.append(b)
+        data = bytes(ba)
+    if len(argv) > 3:
+        try:
+            termsec = float(argv[3])
+        except: pass
+        if termsec is None or not (termsec >= 0):
+            raise Exception("notifier arguments error:"+
+                            " termsec if given must be a nonnegative real"+
+                            " number")
+
+    # build & send the notification message
+    msg = brepr.BGPNotification(client.env, code, subcode, data)
+    client.wrpsok.send(msg)
+
+    # If "termsec" was specified, wait that many seconds then cause the
+    # program to exit; if not, then done.
+    if termsec is not None:
+        yield(boper.WHILE_TX_PENDING)
+        yield(termsec + bmisc.tor.get())
+        sys.exit(0)
+
+_programmes["notifier"] = notifier
+
 ## ## ## Register all the canned programmes
 
 def register_programmes(commanding):

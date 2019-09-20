@@ -205,7 +205,7 @@ class Commanding(object):
         # it's not really worth it for the intended use here.
 
         time_next = None
-        for pname in self.programme_iterator_times:
+        for pname in list(self.programme_iterator_times):
             # find out what the recorded time to run the iterator is
             t = self.programme_iterator_times[pname]
 
