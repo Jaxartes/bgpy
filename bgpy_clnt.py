@@ -27,7 +27,7 @@
 It provides a limited BGP tester that can connect to a BGP peer, exchange
 open and keepalive messages as required, and perform other operations
 (chiefly running "canned programmes" that might send BGP routes) as
-requested on stdin.
+requested on stdin or on the command line.
 
 This will probably not work on Windows because of how it uses 'select'."""
 
@@ -113,7 +113,7 @@ class Commanding(object):
         # the first word is the command, handle it
         if words[0] == "help":
             print("# Commands:\n"+
-                  "#   echo ... -- write arbitrary text to output\n"++++
+                  "#   echo ... -- write arbitrary text to output\n"+
                   "#   exit -- exit bgpy_clnt entirely\n"+
                   "#   pause programme -- pause a running programme\n"+
                   "#   resume programme -- resume a paused programme\n"+
@@ -134,7 +134,12 @@ class Commanding(object):
                 print("Programme '"+pname+"' already running.",
                       file=self.client.get_error_channel())
                 return
-            it = self.programme_handlers[pname](self, self.client, words[2:])
+            try:
+                it = self.programme_handlers[pname](self, self.client,
+                                                    words[2:])
+            except Exception as e:
+                print("Programme '"+pname+"' had error: "+
+                      repr(e), file=self.client.get_error_channel())
             self.programme_iterators[pname] = it
             self.programme_iterator_times[pname] = 0
         elif words[0] == "pause":
@@ -184,7 +189,7 @@ class Commanding(object):
             del self.programme_iterators[pname]
             del self.programme_iterator_times[pname]
         elif words[0] == "echo":
-            print(" ".join(words[1]),
+            print(" ".join(words[1:]),
                   file=self.client.get_error_channel())
         elif words[0] == "exit":
             if len(words) != 1:
@@ -233,6 +238,11 @@ class Commanding(object):
                     t = next(iterator)
                     self.programme_iterator_times[pname] = t
                 except StopIteration:
+                    del self.programme_iterator_times[pname]
+                    del self.programme_iterators[pname]
+                except Exception as e:
+                    print("Programme '"+pname+"' had error: "+
+                          repr(e), file=self.client.get_error_channel())
                     del self.programme_iterator_times[pname]
                     del self.programme_iterators[pname]
 
@@ -436,7 +446,6 @@ if equal_parms["tcp-hex"]:
     c.env.data_cb = tcp_hex_handler
 
 cmdi = Commanding(c)
-cmdbuf = ""
 register_programmes(cmdi)
 for cmd in pre_commands:
     cmdi.handle_command(cmd)
@@ -482,18 +491,18 @@ while True:
             bmisc.stamprint("Connection was closed")
             break
     if sys.stdin in rlist:
-        # read a command, or part of one
-        cmdbuf += sys.stdin.read(512)
-        while True:
-            nl = cmdbuf.find("\n")
-            if nl < 0: break        # no more commands
-            try:
-                cmdi.handle_command(cmdbuf[0:nl])
-            except Exception as e:
-                print("Command failure: "+str(e), file=sys.stderr)
-                if dbg.estk:
-                    print_exc(file=sys.stderr)
-            line = cmdbuf[nl:]
+        # Read a command.  Note that if stdin has only part of a line,
+        # not a whole line, this is going to block; the whole program
+        # will pause until the rest of the line comes in.  But that's
+        # an abnormal case.  And alternatives I've tried don't work
+        # right.
+        cmdbuf = sys.stdin.readline()
+        try:
+            cmdi.handle_command(cmdbuf)
+        except Exception as e:
+            print("Command failure: "+str(e), file=sys.stderr)
+            if dbg.estk:
+                print_exc(file=sys.stderr)
     while True:
         try:
             msg = c.wrpsok.recv()

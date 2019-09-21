@@ -23,3 +23,8 @@ Are almost infinite in number; some of the most notable:
     + bgpy is always the one to make the connection
         - it doesn't accept the connection
         - so the peer might as well be in "passive" mode
+
+Portability:
+bgpy needs Python version 3.  I've tested using python 3.4.10.  I've tested
+mainly on macOS, some on Linux.  I have reason to suspect there may be
+problems on Windows, especially with the command interface on stdin.
