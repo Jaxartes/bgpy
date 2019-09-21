@@ -720,7 +720,7 @@ class BGPNotification(BGPMessage):
 
         # describe "data" -- in hex for now, if nonempty
         if len(self.data):
-            data = ", data" + ".".join(map("{:02x}".format, self.data))
+            data = ", data=" + ".".join(map("{:02x}".format, self.data))
         else:
             data = ""
 

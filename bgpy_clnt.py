@@ -56,16 +56,25 @@ class Commanding(object):
         "initialize the Commanding object"
         # programme_handlers maps the name of a programme to its handler; see
         # register_programme()
+        #
         # programme_iterators maps the name of a programme already started
         # to its iterator; see register_programme().
-        # client is the client object to which the commands apply,
-        # which will in turn be passed to programme handlers etc.
+        #
         # programme_iterator_times indicates when each should run; 0 means
         # immediately; None means it's suspended
+        #
+        # client is the client object to which the commands apply,
+        # which will in turn be passed to programme handlers etc.
+        #
+        # deferred_commands is a list of commands that have been scheduled
+        # for running later, with "after".  Each is listed as a 2-tuple
+        # consisting of the time it's to be run at, and the words of
+        # the command.  The list is kept sorted.
+        self.client = client
         self.programme_handlers = dict()
         self.programme_iterators = dict()
         self.programme_iterator_times = dict()
-        self.client = client
+        self.deferred_commands = []
 
     def register_programme(self, pname, phandler):
         """Register a 'canned programme', with the given name, and a handler.
@@ -96,16 +105,20 @@ class Commanding(object):
 
     def handle_command(self, line):
         "Handle an input command 'line'"
-        # Break the line into words
-        words = []
-        try:
-            words = bmisc.supersplit(line, end_at = "#")
-        except Exception as e:
-            print("Unable to parse command line: "+str(e),
-                  file=self.client.get_error_channel())
-            if dbg.estk:
-                print_exc(file=self.client.get_error_channel())
-            return
+
+        # Break the line into words if it isn't already.
+        if type(line) is str:
+            words = []
+            try:
+                words = bmisc.supersplit(line, end_at = "#")
+            except Exception as e:
+                print("Unable to parse command line: "+str(e),
+                      file=self.client.get_error_channel())
+                if dbg.estk:
+                    print_exc(file=self.client.get_error_channel())
+                return
+        else:
+            words = line
 
         # ignore an empty command line
         if not words: return
@@ -113,6 +126,7 @@ class Commanding(object):
         # the first word is the command, handle it
         if words[0] == "help":
             print("# Commands:\n"+
+                  "#   after seconds cmd... -- run a command after delay\n"+
                   "#   echo ... -- write arbitrary text to output\n"+
                   "#   exit -- exit bgpy_clnt entirely\n"+
                   "#   pause programme -- pause a running programme\n"+
@@ -191,25 +205,57 @@ class Commanding(object):
         elif words[0] == "echo":
             print(" ".join(words[1:]),
                   file=self.client.get_error_channel())
+        elif words[0] == "after":
+            err = None
+            try:
+                delay = float(words[1])
+            except Exception as e:
+                err = "delay must be a number"
+                delay = 1
+            if not (delay >= 0):
+                err = "delay must not be negative"
+            if len(words) < 3:
+                err = "missing arguments"
+            if err is not None:
+                print("Error in 'after': "+err,
+                      file=self.client.get_error_channel())
+                return
+
+            # Add to deferred_commands while keeping that list sorted.
+            # A binary search would make this rather more efficient.
+            delay_to = bmisc.tor.get() + delay
+            wher = 0
+            for wher in range(len(self.deferred_commands)):
+                if self.deferred_commands[wher][0] > delay_to:
+                    break
+            self.deferred_commands[wher:wher] = ((delay_to, words[2:]),)
         elif words[0] == "exit":
             if len(words) != 1:
                 print("Syntax error in 'exit'",
                       file=self.client.get_error_channel())
             sys.exit(0)
         else:
-            print("Unknown command '"+repr(word[0])+"'",
+            print("Unknown command "+repr(words[0]),
                   file=self.client.get_error_channel())
             return
 
     def invoke(self, now):
-        """If any pending programme is to be run before the time 'now',
-        run them; return the time in seconds before the next is to run, or
-        None if there isn't any."""
+        """If any pending programme or deferred command is to be run by
+        the time 'now', do it; return the time in seconds before the next
+        is to run, or None if there isn't any."""
 
         # This could be made more scalable with a priority queue, but
         # it's not really worth it for the intended use here.
 
-        time_next = None
+        while self.deferred_commands and self.deferred_commands[0][0] <= now:
+            dcwhat = self.deferred_commands[0][1]
+            self.deferred_commands[0:1] = ()
+            self.handle_command(dcwhat)
+
+        if self.deferred_commands:
+            time_next = self.deferred_commands[0][0]
+        else:
+            time_next = None
         for pname in list(self.programme_iterator_times):
             # find out what the recorded time to run the iterator is
             t = self.programme_iterator_times[pname]

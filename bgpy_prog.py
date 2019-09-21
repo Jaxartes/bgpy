@@ -389,13 +389,12 @@ def notifier(commanding, client, argv):
         notification code (numeric; example: 6 for "Cease")
         notification subcode (numeric; depends on main code)
         (optional) data (hexadecimal, or "text:" followed by text)
-        (optional) seconds before exiting, if at all
     """
 
     # Parse and check argv[]
     if len(argv) < 2:
         raise Exception("notifier arguments error: too few")
-    elif len(argv) > 4:
+    elif len(argv) > 3:
         raise Exception("notifier arguments error: too many")
     code = subcode = termsec = None
     try:
@@ -432,25 +431,10 @@ def notifier(commanding, client, argv):
                                 " bad hex data")
             ba.append(b)
         data = bytes(ba)
-    if len(argv) > 3:
-        try:
-            termsec = float(argv[3])
-        except: pass
-        if termsec is None or not (termsec >= 0):
-            raise Exception("notifier arguments error:"+
-                            " termsec if given must be a nonnegative real"+
-                            " number")
 
     # build & send the notification message
     msg = brepr.BGPNotification(client.env, code, subcode, data)
     client.wrpsok.send(msg)
-
-    # If "termsec" was specified, wait that many seconds then cause the
-    # program to exit; if not, then done.
-    if termsec is not None:
-        yield(boper.WHILE_TX_PENDING)
-        yield(termsec + bmisc.tor.get())
-        sys.exit(0)
 
 _programmes["notifier"] = notifier
 
