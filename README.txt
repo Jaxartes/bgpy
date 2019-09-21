@@ -28,3 +28,23 @@ Portability:
 bgpy needs Python version 3.  I've tested using python 3.4.10.  I've tested
 mainly on macOS, some on Linux.  I have reason to suspect there may be
 problems on Windows, especially with the command interface on stdin.
+
+Brief usage guide:
+    Commands can be entered on stdin:
+        "help" will list the commands you can issue there.
+        Most notable is "run" to run one of the canned "programmes"
+        that are implemented in bgpy_prog.py.
+    Command line options:
+        Should end with the IP address of the BGP peer.
+        Other arguments:
+            dbg= -- set one of the named debug flags to enable additional output
+                dbg=estk -- include stack trace with error messages
+                dbg=sokw -- include messages about select() and socket ops
+            local-as= -- set local Autonomous System number; default: 1
+            quiet=1 -- reduce output
+            router-id= -- set own router id
+            tcp-hex=1 -- display the bytes exchanged with peer over TCP
+            @command... -- run "command..." as if it was issued on stdin
+    Programmes
+        These are the things that actually do something.
+        See bgpy_prog.py.
