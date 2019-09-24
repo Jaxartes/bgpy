@@ -404,6 +404,10 @@ equal_parms.add("router-id", "Router ID", bmisc.EqualParms_parse_i32_ip)
 equal_parms.parse("router-id=0.0.0.1") # default value
 equal_parms.add_alias("rtrid", "router-id")
 
+equal_parms.add("local-addr", "Local IP Address")
+equal_parms.parse("local-addr=") # default value
+equal_parms.add_alias("laddr", "local-addr")
+
 equal_parms.add("tcp-hex", "Show TCP exchanges in hex",
                 bmisc.EqualParms_parse_i32)
 equal_parms.parse("tcp-hex=0") # default value
@@ -454,6 +458,17 @@ bmisc.stamprint("Started.")
 
 sok = socket.socket(socket.AF_INET, socket.SOCK_STREAM,
                     socket.IPPROTO_TCP)
+
+if equal_parms["local-addr"] != "":
+    try:
+        sok.bind((equal_parms["local-addr"], 0))
+    except Exception as e:
+        print("Failed to bind to "+equal_parms["local-addr"]+": "+str(e),
+             file=sys.stderr)
+        if dbg.estk:
+            print_exc(file=sys.stderr)
+        sys.exit(1)
+
 try:
     sok.connect((peer_addr, brepr.BGP_TCP_PORT))
         # XXX maybe add an optional parameter for remote TCP port
@@ -462,6 +477,7 @@ except Exception as e:
           str(brepr.BGP_TCP_PORT)+": "+str(e), file=sys.stderr)
     if dbg.estk:
         print_exc(file=sys.stderr)
+    sys.exit(1)
 
 c = Client(sok = sok,
            local_as = equal_parms["local-as"],

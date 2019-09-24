@@ -44,6 +44,7 @@ Brief usage guide:
             quiet=1 -- reduce output
             router-id= -- set own router id
             tcp-hex=1 -- display the bytes exchanged with peer over TCP
+            local-addr= -- bind to specified local address
             @command... -- run "command..." as if it was issued on stdin
     Programmes
         These are the things that actually do something.
