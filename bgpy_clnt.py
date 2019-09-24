@@ -154,8 +154,13 @@ class Commanding(object):
             except Exception as e:
                 print("Programme '"+pname+"' had error: "+
                       repr(e), file=self.client.get_error_channel())
-            self.programme_iterators[pname] = it
-            self.programme_iterator_times[pname] = 0
+            if it is None:
+                # Huh, programme completed immediately instead of producing
+                # an iterator.  No need to remember it, it's done.
+                pass
+            else:
+                self.programme_iterators[pname] = it
+                self.programme_iterator_times[pname] = 0
         elif words[0] == "pause":
             if len(words) != 2:
                 print("Syntax error in 'pause'",
@@ -454,7 +459,7 @@ try:
         # XXX maybe add an optional parameter for remote TCP port
 except Exception as e:
     print("Failed to connect to "+peer_addr+" port "+
-          str(bmisc.BGP_TCP_PORT)+": "+str(e), file=sys.stderr)
+          str(brepr.BGP_TCP_PORT)+": "+str(e), file=sys.stderr)
     if dbg.estk:
         print_exc(file=sys.stderr)
 

@@ -48,3 +48,8 @@ Brief usage guide:
     Programmes
         These are the things that actually do something.
         See bgpy_prog.py.
+
+About the name:
+"bgpy" got its name by being an implementation of BGP in Python.  It is
+pronounced "bee-gee-pie".
+

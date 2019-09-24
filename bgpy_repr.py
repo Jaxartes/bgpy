@@ -700,7 +700,7 @@ class BGPNotification(BGPMessage):
         if self.error_code == err_code.msghdr:
             sub = ", sub="+err_sub_msghdr.value2name(self.error_subcode)
         elif self.error_code == err_code.opnmsg:
-            sub = ", sub="+err_sub_openmsg.value2name(self.error_subcode)
+            sub = ", sub="+err_sub_opnmsg.value2name(self.error_subcode)
         elif self.error_code == err_code.updmsg:
             sub = ", sub="+err_sub_updmsg.value2name(self.error_subcode)
         elif self.error_code == err_code.fsm:
