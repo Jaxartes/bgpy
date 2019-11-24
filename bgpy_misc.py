@@ -1,4 +1,3 @@
-# Jeremy Dilatush - All rights reserved.
 # bgpy_misc.py - begun 27 April 2019
 # Copyright (c) 2019 Jeremy Dilatush
 # All rights reserved.

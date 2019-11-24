@@ -1,4 +1,3 @@
-# Jeremy Dilatush - All rights reserved.
 # bgpy_test.py - begun 4 May 2019
 # Copyright (c) 2019 Jeremy Dilatush
 # All rights reserved.

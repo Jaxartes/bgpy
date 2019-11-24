@@ -1,4 +1,3 @@
-# Jeremy Dilatush - All rights reserved.
 # bgpy_prog.py - begun 5 July 2019
 # Copyright (c) 2019 Jeremy Dilatush
 # All rights reserved.
