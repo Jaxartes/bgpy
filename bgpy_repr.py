@@ -261,6 +261,23 @@ safis = ConstantSet(
     ( "VPNv4_diss_flow_spec", "VPNv4 dissemination of flow specification rules", 134 ), # [RFC5575]
 )
 
+# BGP capability codes; see RFC 5492 and
+# https://www.iana.org/assignments/capability-codes/capability-codes-2.csv
+capabilities = ConstantSet(
+    ( "mp", "Multiprotocol Extensions for BGP-4", 1 ), # RFC2858
+    ( "refr", "Route Refresh Capability for BGP-4", 2 ), # RFC2918
+    ( "filt", "Outbound Route Filtering Capability", 3 ), # RFC5291
+    ( "multr", "Multiple routes to a destination capability (deprecated)", 4 ), # RFC8277
+    ( "extnh", "Extended Next Hop Encoding", 5 ), # RFC5549
+    ( "extmsg", "BGP Extended Message", 6 ), # RFC8654
+    ( "bgpsec", "BGPsec Capability", 7 ), # RFC8205
+    ( "multl", "Multiple Labels Capability", 8 ), # RFC8277
+    ( "gr", "Graceful Restart Capability", 64 ), # RFC4724
+    ( "4as", "Support for 4-octet AS number capability", 65 ), # RFC6793
+    ( "add_path", "ADD-PATH Capability", 69 ), # RFC7911
+    ( "enh_refr", "Enhanced Route Refresh Capability", 70 ), # RFC7313
+)
+
 # The all-ones marker defined in RFC 4271 4.1
 BGP_marker = bytes(b"\xff" * 16)
 
@@ -431,7 +448,7 @@ class BGPMessage(BGPThing):
         """Parse 'data' (either raw binary data or a BGPMessage) into
         a subclass of BGPMessage, and return the result."""
 
-        if data is not BGPMessage:
+        if type(data) is not BGPMessage:
             # parse it to get type & payload first
             data = BGPMessage(env, data)
 
@@ -487,7 +504,9 @@ class BGPOpen(BGPMessage):
                 pl = pc.get_byte()
                 if len(pc) < pl:
                     raise Exception("Truncated option in BGPOpen")
-                self.parms.append(BGPParameter(env, pt, pc.get_bytes(pl)))
+                parm = BGPParameter(env, pt, pc.get_bytes(pl))
+                parm = BGPParameter.parse(env, parm)
+                self.parms.append(parm)
         elif len(args) == 5:
             # By fields (version, my_as, hold_time, peer_id, parms).
             # Given that, format the raw stuff.
@@ -515,7 +534,9 @@ class BGPOpen(BGPMessage):
                ", version=" + str(self.version) +
                ", my_as=" + str(self.my_as) +
                ", hold_time=" + str(self.hold_time) +
-               ", peer_id=" + (".".join(map(str, self.peer_id))) +")")
+               ", peer_id=" + (".".join(map(str, self.peer_id))) +
+               ", parms=[" +
+               (", ".join(map(str, self.parms))) + "])")
 
 class BGPUpdate(BGPMessage):
     """A BGP update message -- see RFC 4271 4.3."""
@@ -757,7 +778,9 @@ class BGPRouteRefreshMsg(BGPMessage):
         else:
             raise Exception("BGPRouteRefresh() bad parameters")
     def __str__(self):
-        # XXX do something nice here instead of the following
+        return("msg(type=" + msg_type.value2name(self.type) +
+               ", afi=" + afis.value2name(self.afi) +
+               ", safi=" + safis.value2name(self.safi) + ")")
         return(BGPMessage.__str__(self))
 
 ## ## ## BGP Parameters (e.g., capabilities)
@@ -768,7 +791,7 @@ class BGPParameter(BGPThing):
     __slots__ = ["type", "value"]
     def __init__(self, env, *args):
         if len(args) == 1:
-            # from raw binary data
+            # From raw binary data
             raise Exception("not yet implemented - parameter from raw")
         elif len(args) == 2:
             # from type & value
@@ -791,6 +814,81 @@ class BGPParameter(BGPThing):
         vhx = ".".join(map("{:02x}".format, self.value))
         return("parm(type=" + bgp_parms.value2name(self.type) +
                ", value=" + vhx + ")")
+    @staticmethod
+    def parse(env, data):
+        """Parse 'data' (a BGPParameter) into a subclass of BGPParameter,
+        and return the result."""
+       
+        if data.type == bgp_parms.Capabilities:
+            return(BGPCapabilities(env, data))
+        else:
+            # unfamiliar type (or uncommon type "Authentication"), this is
+            # the best we can do
+            return(data)
+
+class BGPCapabilities(BGPParameter):
+    """A BGP capability advertisement parameter -- see RFC 5492."""
+    __slots__ = ["caps"]
+    def __init__(self, env, *args):
+        """Initialize a BGP capabilities parameter."""
+        if len(args) == 1 and type(args[0]) is BGPParameter:
+            # A BGPParameter; further parse its 'value' field.
+            # Intentionally doesn't check its type.
+            parm = args[0]
+
+            # fields in BGPThing and BGPParameter
+            BGPThing.__init__(self, env, parm.raw)
+            self.type = parm.type
+            self.value = parm.value
+
+            # capabilities encoded in 'parm.value'
+            self.caps = []
+            pc = ParseCtx(parm.value)
+            while len(pc):
+                if len(pc) < 2:
+                    raise Exception("Truncated capability in BGPCapabilities")
+                capcode = pc.get_byte()
+                caplen = pc.get_byte()
+                if len(pc) != caplen:
+                    raise Exception("Truncated capability in BGPCapabilities")
+                capval = pc.get_bytes(caplen)
+                self.caps.append(BGPCapability(env, capcode, capval))
+        elif len(args) == 1:
+            # An iterable of BGPCapability objects: build the parameter
+            # out of them.
+            raise Exception("not yet parameter - BGPCapabilities from" +
+                            " list of capabilities")
+        else:
+            raise Exception("BGPCapabilities() bad parameters")
+    def __str__(self):
+        return("caps(" + (", ".join(map(str, self.caps))) + ")")
+
+class BGPCapability(BGPThing):
+    """A single BGP capability found in a Capabilities parameter -- see
+    RFC 5492 and others."""
+    __slots__ = ["code", "val"]
+    def __init__(self, env, *args):
+        if len(args) == 1:
+            # from raw binary data
+            raise Exception("BGPCapability() from raw not implemented")
+        elif len(args) == 2:
+            # from capability code & value
+            # YYY rebuilding the raw part after parsing is a waste
+            self.code = int(args[0])
+            self.val = bytes(args[1])
+
+            ba = bytearray()
+            ba.append(self.code)
+            ba += self.val # XXX can't just do this
+            BGPThing.__init__(self, env, ba)
+        else:
+            raise Exception("BGPCapability() bad parameters")
+    def bgp_thing_type(self): return(BGPCapability)
+    def bgp_thing_type_str(self): return("capability")
+    def __str__(self):
+        vhx = ".".join(map("{:02x}".format, self.val))
+        return("cap(type=" + capabilities.value2name(self.code) +
+               ", val=" + vhx + ")")
 
 ## ## ## BGP Attributes (as found in UPDATE)
 
