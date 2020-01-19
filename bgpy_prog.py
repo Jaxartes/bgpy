@@ -177,6 +177,10 @@ def basic_orig(commanding, client, argv):
 
             An empty AS path is permitted by this program, and in some
             cases by the standard.
+        as4path=1,2,3,(400000-500000)
+            Not usually needed.  Normally the AS4_PATH attribute, if needed,
+            is generated based on 'aspath'.  But if you want to override
+            that for some weird test you can with 'as4path=...'.
         origin=INCOMPLETE
             origin of path information; one of the following values defined
             by RFC 4271 4.3 & 5.1.1:
@@ -216,6 +220,9 @@ def basic_orig(commanding, client, argv):
     cfg.add("aspath", "AS path specification",
             bmisc.EqualParms_parse_Choosable(do_concat = True))
     cfg["aspath"] = bmisc.ChoosableConcat()
+    cfg.add("as4path", "AS4_PATH override",
+            bmisc.EqualParms_parse_Choosable(do_concat = True))
+    cfg["as4path"] = bmisc.ChoosableConcat()
     cfg.add("origin", "ORIGIN path attribute",
             bmisc.EqualParms_parse_enum(brepr.origin_code))
     cfg.parse("origin=INCOMPLETE")
@@ -319,20 +326,43 @@ def basic_orig(commanding, client, argv):
                 dests_used.add(s_dest[s])
             attrs = []
 
-            # attribute "origin"
+            # attribute ORIGIN
             attrs.append(brepr.BGPAttribute(client.env,
                                             brepr.attr_flag.Transitive,
                                             brepr.attr_code.ORIGIN,
                                             bytes([cfg["origin"]])))
 
-            # attribute "as_path": 2 or 4 bytes per AS
+            # attribute AS_PATH: 2 or 4 bytes per AS
+            # And prepare AS4_PATH
             aspath_str = prng.choice(cfg["aspath"])
             aspath = brepr.ASPath(client.env, aspath_str)
+            as4path = None
+            as4path_flags = (brepr.attr_flag.Transitive |
+                             brepr.attr_flag.Optional)
+            if (((not aspath.two) and (not client.env.as4)) or
+                len(cfg['as4path'])):
+                # This AS_PATH doesn't fully fit in 2-bytes-per-AS format,
+                # and we're not speaking 4-bytes-per-AS.  Thus, the AS4_PATH
+                # attribute is appropriate
+                env4 = client.env.with_as4(True)
+                if len(cfg["as4path"]) > 0:
+                    as4path = brepr.ASPath(env4, prng.choice(cfg["as4path"]))
+                elif client.as4_us:
+                    # We admit to understanding as4, so give them everything.
+                    as4path = aspath.fourify(env4, True)
+                else:
+                    # We're pretending not to understand 4-byte-AS; so,
+                    # pretend we received this from upstream
+                    as4path = aspath.fourify(env4, True)
+                    as4path_flags |= brepr.attr_flag.Partial
+            aspath = aspath.make_binary_rep(client.env)
+            if as4path is not None:
+                as4path = as4path.make_binary_rep(env4)
 
             attrs.append(brepr.BGPAttribute(client.env,
                                             brepr.attr_flag.Transitive,
                                             brepr.attr_code.AS_PATH,
-                                            aspath.make_binary_rep(client.env)))
+                                            aspath))
 
             if client.local_as == client.open_recv.my_as:
                 # for IBGP there's the "LOCAL_PREF" attribute;
@@ -344,24 +374,19 @@ def basic_orig(commanding, client, argv):
                                                 brepr.attr_code.LOCAL_PREF,
                                                 lp))
 
-            # attribute: "next hop"
+            # attribute: NEXT_HOP
             nh_str = prng.choice(cfg["nh"])
             attrs.append(brepr.BGPAttribute(client.env,
                                             brepr.attr_flag.Transitive,
                                             brepr.attr_code.NEXT_HOP,
                                             bmisc.parse_ipv4(nh_str)))
 
-            # attribute: "as4_path" only under limited circumstances
-            if (not aspath.two) and (not client.env.as4):
-                e4 = client.env.with_as4(True)
+            # attribute: AS4_PATH, only under limited circumstances
+            if as4path is not None:
                 attrs.append(brepr.BGPAttribute(client.env,
-                                                # XXX what about Partial?
-                                                brepr.attr_flag.Optional|
-                                                brepr.attr_flag.Transitive,
+                                                as4path_flags,
                                                 brepr.attr_code.AS4_PATH,
-                                                aspath.make_binary_rep(e4)))
-                # XXX should provide for a partial AS4_PATH,
-                # and/or the Partial flag, as those seem to be a common case
+                                                as4path))
 
             msg = brepr.BGPUpdate(client.env, [], attrs, [s_dest[s]])
             client.wrpsok.send(msg)

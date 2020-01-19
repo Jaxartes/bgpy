@@ -1112,3 +1112,26 @@ class ASPath(BGPThing):
             seg_strs.append(",".join(sub_strs))
         return("/".join(seg_strs))
 
+    def fourify(self, env, drop):
+        """Return another ASPath, based on this one but modified for
+        suitability for the AS4_PATH attribute.  Any AS_CONFED_* segments
+        get removed; and, if 'drop' is True, the first AS is removed if it's
+        in an AS_SEQUENCE segment and is less than 65536; to simulate the
+        case where we pretend not to support 4-octet AS numbers."""
+
+        segs2 = []
+        for seg_type, as_nums in self.segs:
+            if seg_type == path_seg_type.AS_CONFED_SEQUENCE:
+                continue
+            if seg_type == path_seg_type.AS_CONFED_SET:
+                continue
+            as_nums2 = as_nums
+            if drop:
+                if seg_type == path_seg_type.AS_SEQUENCE:
+                    if as_nums[0] < 65536:
+                        as_nums2 = as_nums[1:]
+                        drop = False
+            segs2.append((seg_type, as_nums2))
+
+        return(ASPath(env, segs2))
+
