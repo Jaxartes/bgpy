@@ -85,9 +85,21 @@ def idler(commanding, client, argv):
         raise Exception("idler arguments error: " + e)
 
     # Build a BGP Open message & queue it for sending
+    open_parms = []
+    capabilities = []
+    if client.as4_us:
+        # advertise the 4-octet AS capability (RFC6793)
+        capba = bytearray()
+        bmisc.ba_put_be4(capba, client.local_as)
+        capabilities.append(brepr.BGPCapability(client.env,
+                                                brepr.capabilities.as4,
+                                                capba))
+    if len(capabilities) > 0:
+        # advertise capabilities (RFC5492)
+        open_parms.append(brepr.BGPCapabilities(client.env, capabilities))
     msg = brepr.BGPOpen(client.env,
                         brepr.bgp_ver.FOUR, client.local_as, hold_time,
-                        client.router_id, [])
+                        client.router_id, open_parms)
     client.wrpsok.send(msg)
     client.open_sent = msg
 
@@ -129,43 +141,6 @@ _programmes["idler"] = idler
 
 ## ## ## Canned programme: "basic_orig"
 
-def basic_orig_parse_as_path(env, s):
-    """Parse an AS path for the "basic_orig" canned programme, in the
-    notation described there."""
-
-    ba = bytearray()
-    if len(s) == 0:
-        segs = [] # special case: empty
-    else:
-        segs = s.split("/")
-
-    for seg in segs:
-        ases = seg.split(",")
-        if ases[0] == "set":
-            seg_type = brepr.path_seg_type.AS_SET
-            ases[:1] = []
-        elif ases[0] == "cseq":
-            seg_type = brepr.path_seg_type.AS_CONFED_SEQUENCE
-            ases[:1] = []
-        elif ases[0] == "cset":
-            seg_type = brepr.path_seg_type.AS_CONFED_SET
-            ases[:1] = []
-        else:
-            seg_type = brepr.path_seg_type.AS_SEQUENCE
-
-        if len(ases) > 255:
-            raise Exception("Too many AS numbers in a sequence")
-        ba.append(seg_type)
-        ba.append(len(ases))
-        for as_str in ases:
-            as_num = int(as_str)
-            if as_num < 1 or as_num > 65535:
-                raise Exception("AS number "+str(as_num)+
-                                " out of range for 16 bits")
-            bmisc.ba_put_be2(ba, as_num)
-
-    return(ba)
-
 def basic_orig(commanding, client, argv):
     """ "basic_orig" canned programme: Sends Updates carring IPv4 routes
     pseudorandomly generated according to some simple configuration.
@@ -198,14 +173,10 @@ def basic_orig(commanding, client, argv):
         aspath=1,2,(3-5)
             AS path.  May use numeric ranges.  May specify more than
             one.  If you don't specify any a simple reasonable default
-            is chosen.  Notation:
-                A sequence of numbers separated by commas makes up an
-                AS_SEQUENCE segment.
-                Precede with "set," to make it an AS_SET segment instead.
-                Use "/" to separate multiple segments.
-                Likewise "cseq," and "cset," prefixes make
-                it AS_CONFED_SEQUENCE & AS_CONFED_SET (see RFC 5065).
-            An empty AS path is permitted.
+            is chosen.  See ASPath() in bgpy_repr.py for the syntax used.
+
+            An empty AS path is permitted by this program, and in some
+            cases by the standard.
         origin=INCOMPLETE
             origin of path information; one of the following values defined
             by RFC 4271 4.3 & 5.1.1:
@@ -275,14 +246,14 @@ def basic_orig(commanding, client, argv):
                     break # no need to wait any longer
                 else:
                     bmisc.stamprint(progname +
-                                    ": OPEN received but not sent; waiting")
+                                    ": OPEN received but not yet sent; waiting")
             else:
                 if open_status[1]:
                     bmisc.stamprint(progname +
-                                    ": OPEN sent but not received; waiting")
+                                    ": OPEN sent but not yet received; waiting")
                 else:
                     bmisc.stamprint(progname +
-                                    ": OPEN neither sent not received; waiting")
+                                    ": OPEN neither sent/received yet; waiting")
         yield boper.NEXT_TIME
 
     ## ## storage of current state
@@ -347,16 +318,22 @@ def basic_orig(commanding, client, argv):
                     s_dest[s] = brepr.IPv4Prefix(client.env, deststr)
                 dests_used.add(s_dest[s])
             attrs = []
+
+            # attribute "origin"
             attrs.append(brepr.BGPAttribute(client.env,
                                             brepr.attr_flag.Transitive,
                                             brepr.attr_code.ORIGIN,
                                             bytes([cfg["origin"]])))
-            aspath = basic_orig_parse_as_path(client.env,
-                                              prng.choice(cfg["aspath"]))
+
+            # attribute "as_path": 2 or 4 bytes per AS
+            aspath_str = prng.choice(cfg["aspath"])
+            aspath = brepr.ASPath(client.env, aspath_str)
+
             attrs.append(brepr.BGPAttribute(client.env,
                                             brepr.attr_flag.Transitive,
                                             brepr.attr_code.AS_PATH,
-                                            aspath))
+                                            aspath.make_binary_rep(client.env)))
+
             if client.local_as == client.open_recv.my_as:
                 # for IBGP there's the "LOCAL_PREF" attribute;
                 # just use a default value of 100.
@@ -366,11 +343,26 @@ def basic_orig(commanding, client, argv):
                                                 brepr.attr_flag.Transitive,
                                                 brepr.attr_code.LOCAL_PREF,
                                                 lp))
+
+            # attribute: "next hop"
             nh_str = prng.choice(cfg["nh"])
             attrs.append(brepr.BGPAttribute(client.env,
                                             brepr.attr_flag.Transitive,
                                             brepr.attr_code.NEXT_HOP,
                                             bmisc.parse_ipv4(nh_str)))
+
+            # attribute: "as4_path" only under limited circumstances
+            if (not aspath.two) and (not client.env.as4):
+                e4 = client.env.with_as4(True)
+                attrs.append(brepr.BGPAttribute(client.env,
+                                                # XXX what about Partial?
+                                                brepr.attr_flag.Optional|
+                                                brepr.attr_flag.Transitive,
+                                                brepr.attr_code.AS4_PATH,
+                                                aspath.make_binary_rep(e4)))
+                # XXX should provide for a partial AS4_PATH,
+                # and/or the Partial flag, as those seem to be a common case
+
             msg = brepr.BGPUpdate(client.env, [], attrs, [s_dest[s]])
             client.wrpsok.send(msg)
             s_full[s] = True

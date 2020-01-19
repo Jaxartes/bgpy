@@ -214,16 +214,16 @@ class ParseCtx(object):
         buf - the message being parsed; type "bytes"
         pos - current parse position in 'buf'
         end - parse position after the last one considered relevant
-        as4 - whether 4 byte AS numbers are enabled."""
+    """
 
-    __slots__ = ["buf", "pos", "end", "as4"]
+    __slots__ = ["buf", "pos", "end"]
 
-    def __init__(self, obj, pos = None, end = None, as4 = None):
+    def __init__(self, obj, pos = None, end = None):
         """Constructor:
             ParseCtx(bytes)
                 new context for whole of bytes
-            ParseCtx(bytes, pos=X, end=X, as4=Y)
-                fancier form: limited substring of bytes, 'as4' flag specified
+            ParseCtx(bytes, pos=X, end=X)
+                fancier form: limited substring of bytes
             ParseCtx(ctx)
                 copy of another context
         """
@@ -233,12 +233,10 @@ class ParseCtx(object):
             self.buf = obj
             self.pos = 0
             self.end = len(obj)
-            self.as4 = False
         elif type(obj) is ParseCtx:
             self.buf = obj.buf
             self.pos = obj.pos
             self.end = obj.end
-            self.as4 = obj.as4
         else:
             raise(TypeError("ParseCtx takes bytes or ParseCtx not "+
                             str(type(obj))))
@@ -258,8 +256,6 @@ class ParseCtx(object):
                 raise(IndexError("pos value "+str(pos)+" out of range"))
             else:
                 self.pos += pos
-        if as4 is not None:
-            self.as4 = bool(as4)
 
     def __repr__(self):
         return("ParseCtx("+repr(self.buf[self.pos:self.end])+")")
@@ -313,8 +309,7 @@ class ParseCtx(object):
     def dump(self):
         """Dump internal structure of ParseCtx, for debugging."""
         return("ParseCtx{"+str(self.buf)+
-               "["+str(self.pos)+":"+str(self.end)+"],as4="+
-               str(self.as4)+"}")
+               "["+str(self.pos)+":"+str(self.end)+"]}")
     def _reindex(self, idx, fix = False):
         """Convert an index to go within self.buf"""
         if type(idx) is not int:
@@ -356,7 +351,6 @@ class ParseCtx(object):
         else:
             # single index
             return(self.buf[self._reindex(key)])
-    # XXX I'm not sure I'm going to use the 'as4' flag here, if I don't in the end, maybe get rid of it
     def __eq__(self, other): return(bytes(self) == bytes(other))
     def __ne__(self, other): return(bytes(self) != bytes(other))
     def __lt__(self, other): return(bytes(self) <  bytes(other))
@@ -762,3 +756,35 @@ def parse_ipv4(s):
             raise Exception(repr(sub)+" in "+repr(s)+" is not a 0-255 integer")
         ba.append(i)
     return(bytes(ba))
+
+def parse_as(s):
+    """parse_as() parses an autonomous system number.  It takes numbers
+    in the various forms defined by RFC5396: a single 32-bit decimal integer,
+    or two 16-bit decimal integers separated by a period (.)."""
+
+    subs = s.split(".")
+    if len(subs) == 1:
+        # "asplain" / "asdot+"
+        try:
+            i = int(subs[0], 10)
+        except:
+            i = -1 # intentionally bogus
+    elif len(subs) == 2:
+        # "asdot" / "asdot+"
+        try:
+            i = int(subs[0], 10) * 65536 + int(subs[1], 10)
+        except:
+            i = -1 # intentionally bogus
+    else:
+        i = -1 # intentionally bogus
+
+    if i < 0 or i > 4294967295:
+        raise Exception(repr(s)+" is not a valid AS number")
+    return(i)
+
+def EqualParms_parse_as(ep, n, pv, s):
+    """Wrapper around parse_as() for use in EqualParms."""
+    try:
+        return(parse_as(s))
+    except: pass
+    raise Exception(n+" must be an AS number in RFC 5396 format")

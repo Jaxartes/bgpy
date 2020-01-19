@@ -335,7 +335,8 @@ class Client(object):
                  outfile = sys.stdout,
                  errfile = sys.stderr,
                  holdtime_sec = 60,
-                 holdtime_expiry = default_holdtime_expiry
+                 holdtime_expiry = default_holdtime_expiry,
+                 as4_us = False
                  ):
         """Constructor.  Various parameters:
         Required:
@@ -350,6 +351,8 @@ class Client(object):
             holdtime_sec -- hold time to propose in seconds
             holdtime_expiry -- function (passed this Client object) to
                 call when the negotiated hold time has expired
+            as4_us -- whether to support 4-octet AS number (RFC 6793);
+                whether it's actually implemented depends on the peer
         """
 
         if type(holdtime_sec) is not int:
@@ -379,6 +382,7 @@ class Client(object):
         self.holdtime_sec = holdtime_sec
         self.open_sent = None           # BGP Open message we sent if any
         self.open_recv = None           # BGP Open message we received if any
+        self.as4_us = as4_us
 
         bmisc.stamprint("Connected.")
 
@@ -388,14 +392,12 @@ class Client(object):
     def get_output_channel(self):
         return(self.outfile)
 
-    # XXX much more in this class 'Client'
-
 ## ## ## Command line parameter handling
 
 # name=value parameters we know about
 equal_parms = bmisc.EqualParms()
 
-equal_parms.add("local-as", "Local AS Number", bmisc.EqualParms_parse_i32)
+equal_parms.add("local-as", "Local AS Number", bmisc.EqualParms_parse_as)
 equal_parms.parse("local-as=1") # default value
 equal_parms.add_alias("las", "local-as")
 
@@ -413,6 +415,10 @@ equal_parms.parse("tcp-hex=0") # default value
 
 equal_parms.add("dbg", "enable the specified debug flag",
                 None, lambda f: dbg.add(f))
+
+equal_parms.add("as4", "enable 4-octet AS number support (RFC6793)",
+                bmisc.EqualParms_parse_num_rng(mn=0, mx=1))
+equal_parms.parse("as4=0") # default value
 
 equal_parms.add("quiet", "reduce output", bmisc.EqualParms_parse_i32)
 equal_parms.parse("quiet=0")
@@ -480,7 +486,8 @@ except Exception as e:
 
 c = Client(sok = sok,
            local_as = equal_parms["local-as"],
-           router_id = equal_parms["router-id"])
+           router_id = equal_parms["router-id"],
+           as4_us = equal_parms["as4"])
 c.wrpsok.set_quiet(bool(equal_parms["quiet"]))
 if equal_parms["tcp-hex"]:
     # hex dump of all data sent/received over TCP
@@ -583,4 +590,16 @@ while True:
         elif msg.type == brepr.msg_type.OPEN:
             # received an Open message -- keep track of it
             if c.open_recv is None: c.open_recv = msg
+            for open_parm in msg.parms:
+                if open_parm.type == brepr.bgp_parms.Capabilities:
+                    for cap in open_parm.caps:
+                        if cap.code == brepr.capabilities.as4:
+                            as4_num = bmisc.ParseCtx(cap.val).get_be4()
+                            c.env.as4 = c.as4_us
+                            if c.env.as4:
+                                as4_str = "will use"
+                            else:
+                                as4_str = "won't use"
+                            bmisc.stamprint("Peer advertised 4-byte AS ("+
+                                            str(as4_num)+"), "+as4_str)
 

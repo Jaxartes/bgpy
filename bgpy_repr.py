@@ -273,13 +273,17 @@ capabilities = ConstantSet(
     ( "bgpsec", "BGPsec Capability", 7 ), # RFC8205
     ( "multl", "Multiple Labels Capability", 8 ), # RFC8277
     ( "gr", "Graceful Restart Capability", 64 ), # RFC4724
-    ( "4as", "Support for 4-octet AS number capability", 65 ), # RFC6793
+    ( "as4", "Support for 4-octet AS number capability", 65 ), # RFC6793
     ( "add_path", "ADD-PATH Capability", 69 ), # RFC7911
     ( "enh_refr", "Enhanced Route Refresh Capability", 70 ), # RFC7313
 )
 
 # The all-ones marker defined in RFC 4271 4.1
 BGP_marker = bytes(b"\xff" * 16)
+
+# "AS_TRANS", defined in RFC 6793 to be substituted for a 4-byte AS number
+# where only a 2-byte AS number fits.
+AS_TRANS = 23456
 
 ## ## ## BGP Configuration-like State
 
@@ -295,6 +299,11 @@ class BGPEnv(object):
         else:
             self.as4 = cpy.as4
             self.data_cb = cpy.data_cb
+    def with_as4(self, as4):
+        """Copy this BGPEnv but with different 'as4' value"""
+        cpy = BGPEnv(self)
+        cpy.as4 = bool(as4)
+        return(cpy)
 
 ## ## ## Representing "things" in BGP
 
@@ -514,7 +523,10 @@ class BGPOpen(BGPMessage):
              self.parms) = args
             ba = bytearray()
             ba.append(self.version)
-            bmisc.ba_put_be2(ba, self.my_as)
+            if self.my_as < 65536:
+                bmisc.ba_put_be2(ba, self.my_as)
+            else:
+                bmisc.ba_put_be2(ba, AS_TRANS)
             bmisc.ba_put_be2(ba, self.hold_time)
             ba.append(self.peer_id[0])
             ba.append(self.peer_id[1])
@@ -856,8 +868,16 @@ class BGPCapabilities(BGPParameter):
         elif len(args) == 1:
             # An iterable of BGPCapability objects: build the parameter
             # out of them.
-            raise Exception("not yet parameter - BGPCapabilities from" +
-                            " list of capabilities")
+            self.caps = args[0]
+            parmval = bytearray()
+            for cap in self.caps:
+                parmval.append(cap.code)
+                capval = bytes(cap.val)
+                if len(capval) > 255:
+                    raise Exception("Overlong capability in BGPCapabilities")
+                parmval.append(len(capval))
+                parmval += capval
+            BGPParameter.__init__(self, env, bgp_parms.Capabilities, parmval)
         else:
             raise Exception("BGPCapabilities() bad parameters")
     def __str__(self):
@@ -876,10 +896,11 @@ class BGPCapability(BGPThing):
             # YYY rebuilding the raw part after parsing is a waste
             self.code = int(args[0])
             self.val = bytes(args[1])
+            if self.val is None: self.val = b""
 
             ba = bytearray()
             ba.append(self.code)
-            ba += self.val # XXX can't just do this
+            ba += self.val
             BGPThing.__init__(self, env, ba)
         else:
             raise Exception("BGPCapability() bad parameters")
@@ -927,4 +948,167 @@ class BGPAttribute(BGPThing):
         vhx = ".".join(map("{:02x}".format, self.val))
         return("attr(type=" + attr_code.value2name(self.type) +
                ", val=" + vhx + ")")
+    # XXX it'd be (rather) nice to decode common attributes like AS_PATH, AS4_PATH, NEXT_HOP
+
+## ## ## AS Path representation
+
+class ASPath(BGPThing):
+    """An AS path as found in the AS_PATH and AS4_PATH attributes in BGP.
+    See RFC4271 5.1.2 and RFC6793 3.  The notation this software uses
+    in string representations, however, is nonstandard and primitive,
+    as follows:
+                A sequence of numbers separated by commas makes up an
+                AS_SEQUENCE segment.
+                Precede with "set," to make it an AS_SET segment instead.
+                Use "/" to separate multiple segments.
+                Likewise "cseq," and "cset," prefixes make
+                it AS_CONFED_SEQUENCE & AS_CONFED_SET (see RFC 5065).
+    """
+
+    # Internal representation of the AS path:
+    # 'segs' - list of segments; each is a tuple containing segment type
+    # and a list of AS numbers
+    # 'two' - whether all its AS numbers fit in 2-byte format
+
+    __slots__ = ["segs", "two"]
+
+    def __init__(self, env, *args):
+        """Initialize either from raw byte data, or a string, or
+        a list of segments, each a tuple containing segment type and
+        a list of AS numbers."""
+
+        if len(args) > 1:
+            # multiple arguments, each a segment; handle as a list of segments
+            arg = args
+        else:
+            # one argument
+            arg = args[0]
+
+        # if the argument is a string, parse it as user input
+        if type(args[0]) is str:
+            self.segs = []
+            self.two = True
+
+            for segstr in arg.split("/"):
+                ases = segstr.split(",")
+                as_nums = []
+                # handle segment type if any
+                if ases[0] == "set":
+                    seg_type = path_seg_type.AS_SET
+                    ases[:1] = []
+                elif ases[0] == "cseq":
+                    seg_type = path_seg_type.AS_CONFED_SEQUENCE
+                    ases[:1] = []
+                elif ases[0] == "cset":
+                    seg_type = path_seg_type.AS_CONFED_SET
+                    ases[:1] = []
+                else:
+                    seg_type = path_seg_type.AS_SEQUENCE
+
+                # handle AS numbers
+                for as_str in ases:
+                    as_num = bmisc.parse_as(as_str)
+                    if as_num > 65535: self.two = False
+                    as_nums.append(as_num)
+
+                self.segs.append((seg_type, as_nums))
+
+            BGPThing.__init__(self, env, self.make_binary_rep(env))
+            return
+
+        # if the argument can be treated as a bunch of bytes, parse it
+        # as protocol data
+        is_bytes = False
+        try:
+            arg = bytes(arg)
+            is_bytes = True
+        except: pass
+
+        if is_bytes:
+            BGPThing.__init__(self, env, arg)
+            pc = ParseCtx(self.raw)
+            self.segs = []
+            self.two = True
+            while len(pc) > 0:
+                if len(pc) < 2:
+                    raise Exception("ASPath: missing or extra bytes")
+                seg_type = pc.get_byte()
+                seg_len = pc.get_byte() # number of AS numbers
+                as_nums = []
+                for i in seg_len:
+                    if env.as4:
+                        # 4-byte AS number
+                        if len(pc) < 4:
+                            raise Exception("ASPath: missing or extra bytes")
+                        as_num = pc.get_be4()
+                    else:
+                        # 2-byte AS number
+                        if len(pc) < 2:
+                            raise Exception("ASPath: missing or extra bytes")
+                        as_num = pc.get_be2()
+                    as_nums.append(as_num)
+                    if as_num > 65535: self.two = False
+                self.segs.append((seg_type, as_nums))
+            return
+
+        # if the argument can be treated as an iterable, build an AS path
+        is_iterable = False
+        try:
+            arg = iter(arg)
+            is_iterable = True
+        except: pass
+
+        if is_iterable:
+            self.segs = list(arg)
+            self.two = True
+            for seg_type, as_nums in self.segs:
+                for as_num in as_nums:
+                    if as_num > 65535: self.two = False
+            BGPThing.__init__(self, env, self.make_binary_rep(env))
+            return
+
+        # what is it then? nothing we know how to handle
+        raise Exception("ASPath bad constructor parameters")
+
+    def make_binary_rep(self, env):
+        "Generate binary representation of self, using settings in env."
+
+        ba = bytearray()
+        for seg_type, as_nums in self.segs:
+            ba.append(seg_type)
+            ba.append(len(as_nums))
+            for as_num in as_nums:
+                if env.as4:
+                    # 4-byte AS format
+                    bmisc.ba_put_be4(ba, as_num)
+                elif as_num < 65536:
+                    # 2-byte AS format
+                    bmisc.ba_put_be2(ba, as_num)
+                else:
+                    # 2-byte AS format, doesn't fit
+                    bmisc.ba_put_be2(ba, AS_TRANS)
+
+        return(ba)
+
+    def bgp_thing_type(self): return(ASPath)
+    def bgp_thing_type_str(self): return("as_path")
+    def __str__(self):
+        "convert to string representation"
+        seg_strs = []
+        for seg_type, as_nums in self.segs:
+            sub_strs = []
+            if seg_type == path_seg_type.AS_SET:
+                sub_strs.append("set")
+            elif seg_type == path_seg_type.AS_CONFED_SEQUENCE:
+                sub_strs.append("cseq")
+            elif seg_type == path_seg_type.AS_CONFED_SET:
+                sub_strs.append("cset")
+            elif seg_type == path_seg_type.AS_SEQUENCE:
+                pass
+            else:
+                sub_strs.append("???seg_type_"+str(int(seg_type))+"???")
+            for as_num in as_nums:
+                sub_strs.append(str(int(as_num)))
+            seg_strs.append(",".join(sub_strs))
+        return("/".join(seg_strs))
 

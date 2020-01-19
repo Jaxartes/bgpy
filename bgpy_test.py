@@ -27,6 +27,8 @@ prefer testing code "in use" rather than piece by piece (the proof of the
 pudding is in the eating).  In the case of bgpy, operating sanely and as
 intended when connected to a real BGP implementation is the goal."""
 
+# XXX this file hasn't been maintained or even run for a long time; probably needs fixing; arguably needs expansion
+
 ## ## ## Top matter
 
 from sys import stderr
