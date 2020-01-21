@@ -27,7 +27,7 @@ prefer testing code "in use" rather than piece by piece (the proof of the
 pudding is in the eating).  In the case of bgpy, operating sanely and as
 intended when connected to a real BGP implementation is the goal."""
 
-# XXX this file hasn't been maintained or even run for a long time; probably needs fixing; arguably needs expansion
+# XXX there's a lot this code doesn't test
 
 ## ## ## Top matter
 
@@ -116,27 +116,27 @@ def ParseCtx_test():
 # exception / buf, pos, end, as4 values
 ParseCtx_tv1 = [
     ((b"one",),
-     (b"one", 0, 3, False)),
+     (b"one", 0, 3)),
     ((bmisc.ParseCtx(b"two"),),
-     (b"two", 0, 3, False)),
-    ((bmisc.ParseCtx(b"three", 1, 3, 1),),
-     (b"three", 1, 3, True)),
-    ((b"four", 2, 2, 0),
-     (b"four", 2, 2, False)),
+     (b"two", 0, 3)),
+    ((bmisc.ParseCtx(b"three", 1, 3),),
+     (b"three", 1, 3)),
+    ((b"four", 2, 2),
+     (b"four", 2, 2)),
     ((None,),
      TypeError),
-    ((bmisc.ParseCtx(b"five-six", 2, 4), None, 1, True),
-     (b"five-six", 2, 3, True)),
-    ((bmisc.ParseCtx(b"seven-eight", 3, 8, 1), 1, None, False),
-     (b"seven-eight", 4, 8, False)),
+    ((bmisc.ParseCtx(b"five-six", 2, 4), None, 1),
+     (b"five-six", 2, 3)),
+    ((bmisc.ParseCtx(b"seven-eight", 3, 8), 1, None),
+     (b"seven-eight", 4, 8)),
     ((bmisc.ParseCtx(b"nine-ten", 2), 1.5),
      TypeError),
     ((bmisc.ParseCtx(b"nine-ten", 2), None, 1.5),
      TypeError),
     ((bmisc.ParseCtx(b"nine-ten", 2), 2, 3),
-     (b"nine-ten", 4, 5, False)),
+     (b"nine-ten", 4, 5)),
     ((bmisc.ParseCtx(b"nine-ten", 2), 2, 2),
-     (b"nine-ten", 4, 4, False)),
+     (b"nine-ten", 4, 4)),
     ((bmisc.ParseCtx(b"nine-ten", 2), 3, 2),
      IndexError),
 ]
@@ -148,7 +148,7 @@ def ParseCtx_test1():
         gx = g = "weird failure"
         try:
             gg = bmisc.ParseCtx(*i)
-            g = (gg.buf, gg.pos, gg.end, gg.as4)
+            g = (gg.buf, gg.pos, gg.end)
             gx = x
         except Exception as e:
             g = type(e)
@@ -164,13 +164,13 @@ def ParseCtx_test1():
 # repr, bytes, dump
 ParseCtx_tv2 = [
     (bmisc.ParseCtx(b""),
-     "ParseCtx(b'')", b"", "ParseCtx{b''[0:0],as4=False}"),
-    (bmisc.ParseCtx(b"xyz", 1, as4=1),
-     "ParseCtx(b'yz')", b"yz", "ParseCtx{b'xyz'[1:3],as4=True}"),
-    (bmisc.ParseCtx(b"alpha", 0, 3, as4=0),
-     "ParseCtx(b'alp')", b"alp", "ParseCtx{b'alpha'[0:3],as4=False}"),
+     "ParseCtx(b'')", b"", "ParseCtx{b''[0:0]}"),
+    (bmisc.ParseCtx(b"xyz", 1),
+     "ParseCtx(b'yz')", b"yz", "ParseCtx{b'xyz'[1:3]}"),
+    (bmisc.ParseCtx(b"alpha", 0, 3),
+     "ParseCtx(b'alp')", b"alp", "ParseCtx{b'alpha'[0:3]}"),
     (bmisc.ParseCtx(b"beta", 1, 1),
-     "ParseCtx(b'')", b"", "ParseCtx{b'beta'[1:1],as4=False}"),
+     "ParseCtx(b'')", b"", "ParseCtx{b'beta'[1:1]}"),
 ]
 
 def ParseCtx_test2():
@@ -383,4 +383,65 @@ def ChoosableConcat_test():
         if got != exp: raise TestFailureError()
 
     print("ChoosableConcat_test completed ok", file=stderr)
+
+def parse_ipv6_test():
+    """Test bmisc.parse_ipv6()."""
+
+    # test vector: cases that should succeed
+    tv = [
+        ("::", [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0]),
+        ("1::", [0, 1, 0, 0, 0,0,0,0, 0,0,0,0, 0,0,0,0]),
+        ("::1", [0,0,0,0, 0,0,0,0, 0,0,0,0, 0, 0, 0, 1]),
+        ("aaa::bbb", [10, 170, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 11, 187]),
+        ("1234:5::", [18, 52, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+        ("::678:9a", [0,0,0,0, 0,0,0,0, 0,0,0,0, 6, 120, 0, 154]),
+        ("b:c:d::", [0, 11, 0, 12, 0, 13, 0, 0, 0,0,0,0, 0,0,0,0]),
+        ("::e:f:0", [0,0,0,0, 0,0,0,0, 0, 0, 0, 14, 0, 15, 0, 0]),
+        ("1248:36cb::5a7e:fd91",
+         [18, 72, 54, 203, 0,0,0,0, 0,0,0,0, 90, 126, 253, 145]),
+        ("1:1:1:1:1::1:1",
+         [0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 1, 0, 1]),
+        ("1:1:1::1:1:1:1:1",
+         [0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1]),
+        ("1:2:3:4:5:6:7:8",
+         [0, 1, 0, 2, 0, 3, 0, 4, 0, 5, 0, 6, 0, 7, 0, 8]),
+        ("1:ffff:0:0:eeee::",
+         [0, 1, 255, 255, 0, 0, 0, 0, 238, 238, 0, 0, 0,0,0,0])
+    ]
+    if False: tv[3:3] = [(":::::", [])]     # enable to test the test
+    if False: tv[5:5] = [("::", [0] * 17)]  # enable to test the test
+
+    # test vector: cases that should fail (won't check the error message
+    # just the factor of their failure)
+    tv2 = [
+        "", ":", ":::", "::::", "1:2:3:4:5:6:7", "1:2:3:4:5:6:7:8:9",
+        "1:2::3:4::5:6", "ffff::10000", "ffff::-1", "10000::ffff",
+        "-1::ffff", "1:2:3:g:4:5:6:7"
+    ]
+
+    # do the positive tests
+    for tin, tex in tv:
+        print("input "+repr(tin)+":", file=stderr)
+        tou = list(bmisc.parse_ipv6(tin))
+        print("\texp: "+repr(tex), file=stderr)
+        print("\tgot: "+repr(tou), file=stderr)
+        if tex != tou:
+            raise TestFailureError()
+
+    # do the negative tests
+    for tin in tv2:
+        print("input "+repr(tin)+":")
+        try:
+            tou = list(bmisc.parse_ipv6(tin))
+            gotf = False
+            got = repr(tou)
+        except Exception as e:
+            gotf = True
+            got = "failure: "+str(e)
+        print("\texp: failure", file=stderr)
+        print("\tgot: "+got, file=stderr)
+        if not gotf:
+            raise TestFailureError()
+
+    print("parse_ipv6_test completed ok", file=stderr)
 

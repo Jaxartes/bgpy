@@ -757,6 +757,65 @@ def parse_ipv4(s):
         ba.append(i)
     return(bytes(ba))
 
+def parse_ipv6(s):
+    """parse_ipv6() parses an IPv6 address from string form into
+    a byte array."""
+
+    subs = s.split(":")
+    if len(subs) < 3:
+        raise Exception(repr(s)+" is not a valid IPv6 address: too few ':'s")
+
+    # handle "::"
+    if subs[0] is "" and subs[1] is "":
+        if subs[2] is "":
+            # "::"
+            insat = 0
+            subs = subs[3:]
+        else:
+            # "::..."
+            insat = 0
+            subs = subs[2:]
+    elif subs[-1] is "" and subs[-2] is "":
+        # "...::"
+        subs = subs[:-2]
+        insat = len(subs)
+    else:
+        try:
+            insat = subs.index("")
+            subs[insat:(insat+1)] = []
+        except:
+            insat = None
+
+    try: insat2 = subs.index("")
+    except: insat2 = None
+
+    if insat2 is not None:
+        raise Exception(repr(s)+" is not a valid IPv6 address: too many blanks")
+
+    if insat is not None:
+        # fill with zeros up to full length
+        while len(subs) < 8:
+            subs[insat:insat] = ["0"]
+
+    # check overall length
+    if len(subs) > 8:
+        raise Exception(repr(s)+" is not a valid IPv6 address: too many parts")
+
+    if len(subs) < 8:
+        raise Exception(repr(s)+" is not a valid IPv6 address: too few parts")
+
+    # process the components
+    ba = bytearray()
+    for sub in subs:
+        try: subx = int(sub, 16)
+        except: subx = -1 # intentionally bogus
+        if subx < 0 or subx > 65535:
+            raise Exception(repr(s)+" is not a valid IPv6 address:"+
+                            " out of range component "+repr(sub))
+        ba_put_be2(ba, subx)
+
+    return(bytes(ba))
+
 def parse_as(s):
     """parse_as() parses an autonomous system number.  It takes numbers
     in the various forms defined by RFC5396: a single 32-bit decimal integer,
