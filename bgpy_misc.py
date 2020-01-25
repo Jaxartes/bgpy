@@ -596,6 +596,13 @@ class EqualParms(object):
         if parser is not None: self.parsers[name] = parser
         if storer is not None: self.storers[name] = storer
 
+    def add_parse_file(self, name, desc):
+        """Define a name 'name' such that name=filename will cause
+        'filename' to be parsed for further name-value pairs."""
+
+        self.add(name, desc,
+                 storer = lambda path: self.parse_file(path))
+
     def describe(self):
         "Iterate over names known, with descriptions, for help purposes."
 
@@ -634,6 +641,36 @@ class EqualParms(object):
         self.values[n] = v2
         if n in self.storers:
             self.storers[n](v2)
+
+    def parse_file(self, file):
+        """Parse name=value pairs from a file.  Blank lines and lines
+        beginning with "#" are ignored.  This is not the normal way of
+        entering name=value pairs but is an occasionally useful
+        alternative to the command line."""
+
+        close_file = False
+        if type(file) is str or type(file) is bytes:
+            # file name; open it
+            file = open(file, mode='r')
+            close_file = True
+
+        for line in file:
+            line = line.strip()
+            if line is "":
+                # skip blank lines
+                continue
+            if line[0] is "#":
+                # skip "#" comment lines
+                continue
+            try:
+                self.parse(line)
+            except Exception as e:
+                if close_file:
+                    file.close()
+                raise e from None
+
+        if close_file:
+            file.close()
 
     def __getitem__(self, n):
         "Look up the value last parsed for name 'n'."

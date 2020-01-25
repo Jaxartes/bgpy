@@ -187,6 +187,9 @@ def basic_orig(commanding, client, argv):
                 IGP
                 EGP
                 INCOMPLETE
+        file=path/name
+            Parse further name-value pairs from named file.  One pair on
+            each line; ignores blank lines and lines beginning with "#".
     """
 
     ## configuration via name-value pairs
@@ -226,6 +229,7 @@ def basic_orig(commanding, client, argv):
     cfg.add("origin", "ORIGIN path attribute",
             bmisc.EqualParms_parse_enum(brepr.origin_code))
     cfg.parse("origin=INCOMPLETE")
+    cfg.add_parse_file("file", "read name-value pairs from file")
 
     for arg in argv:
         cfg.parse(arg)
