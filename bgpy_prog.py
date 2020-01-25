@@ -211,7 +211,7 @@ def basic_orig(commanding, client, argv):
                                            t = float, tn = "number"))
     cfg["bint"] = 10.0 # default value
     cfg.add("slots", "Slots for tracking our routes",
-            bmisc.EqualParms_parse_num_rng(mn = 1, mx = 1000000))
+            bmisc.EqualParms_parse_num_rng(mn = 1, mx = 10000000))
     cfg["slots"] = 100 # default value
     cfg.add("newdest", "% probability of new destination",
             bmisc.EqualParms_parse_num_rng(mn = 0.0, mx = 100.0,

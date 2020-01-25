@@ -129,6 +129,8 @@ class Commanding(object):
                   "#   echo ... -- write arbitrary text to output\n"+
                   "#   exit -- exit bgpy_clnt entirely\n"+
                   "#   pause programme -- pause a running programme\n"+
+                  "#   quiet -- reduce output\n"+
+                  "#   noquiet -- undo the effect of 'quiet'\n"+
                   "#   resume programme -- resume a paused programme\n"+
                   "#   run programme [args] -- start a canned programme\n"+
                   "#   stop programme -- stop a running programme\n",
@@ -175,6 +177,18 @@ class Commanding(object):
                       file=self.client.get_error_channel())
                 return
             self.programme_iterator_times[pname] = None
+        elif words[0] == "quiet":
+            if len(words) != 1:
+                print("Syntax error in 'quiet'",
+                      file=self.client.get_error_channel())
+                return
+            self.client.wrpsok.set_quiet(True)
+        elif words[0] == "noquiet":
+            if len(words) != 1:
+                print("Syntax error in 'noquiet'",
+                      file=self.client.get_error_channel())
+                return
+            self.client.wrpsok.set_quiet(False)
         elif words[0] == "resume":
             if len(words) != 2:
                 print("Syntax error in 'resume'",
@@ -596,10 +610,6 @@ while True:
                         if cap.code == brepr.capabilities.as4:
                             as4_num = bmisc.ParseCtx(cap.val).get_be4()
                             c.env.as4 = c.as4_us
-                            if c.env.as4:
-                                as4_str = "will use"
-                            else:
-                                as4_str = "won't use"
                             bmisc.stamprint("Peer advertised 4-byte AS ("+
-                                            str(as4_num)+"), "+as4_str)
+                                            str(as4_num)+")")
 
