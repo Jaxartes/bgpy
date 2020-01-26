@@ -895,8 +895,10 @@ class BGPCapability(BGPThing):
             # from capability code & value
             # YYY rebuilding the raw part after parsing is a waste
             self.code = int(args[0])
-            self.val = bytes(args[1])
-            if self.val is None: self.val = b""
+            if args[1] is None:
+                self.val = b""
+            else:
+                self.val = bytes(args[1])
 
             ba = bytearray()
             ba.append(self.code)

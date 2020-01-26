@@ -94,6 +94,12 @@ def idler(commanding, client, argv):
         capabilities.append(brepr.BGPCapability(client.env,
                                                 brepr.capabilities.as4,
                                                 capba))
+    if client.rr_us:
+        # advertise the route refresh capability (RFC 2918)
+        # (we don't actually implement it in bgpy)
+        capabilities.append(brepr.BGPCapability(client.env,
+                                                brepr.capabilities.refr,
+                                                None))
     if len(capabilities) > 0:
         # advertise capabilities (RFC5492)
         open_parms.append(brepr.BGPCapabilities(client.env, capabilities))

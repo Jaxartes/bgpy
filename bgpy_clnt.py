@@ -350,7 +350,8 @@ class Client(object):
                  errfile = sys.stderr,
                  holdtime_sec = 60,
                  holdtime_expiry = default_holdtime_expiry,
-                 as4_us = False
+                 as4_us = False,
+                 rr_us = False
                  ):
         """Constructor.  Various parameters:
         Required:
@@ -367,6 +368,8 @@ class Client(object):
                 call when the negotiated hold time has expired
             as4_us -- whether to support 4-octet AS number (RFC 6793);
                 whether it's actually implemented depends on the peer
+            rr_us -- whether to advertise route refresh capability (RFC 2918);
+                the actual functionality is not implemented in bgpy
         """
 
         if type(holdtime_sec) is not int:
@@ -397,6 +400,7 @@ class Client(object):
         self.open_sent = None           # BGP Open message we sent if any
         self.open_recv = None           # BGP Open message we received if any
         self.as4_us = as4_us
+        self.rr_us = rr_us
 
         bmisc.stamprint("Connected.")
 
@@ -436,6 +440,13 @@ equal_parms.parse("as4=0") # default value
 
 equal_parms.add("quiet", "reduce output", bmisc.EqualParms_parse_i32)
 equal_parms.parse("quiet=0")
+
+equal_parms.add("route-refresh",
+                "Advertise route refresh capability"+
+                " (without really implementing its functionality)",
+                bmisc.EqualParms_parse_num_rng(mn=0, mx=1))
+equal_parms.parse("route-refresh=0") # default value
+equal_parms.add_alias("rr", "route-refresh")
 
 ## ## ## outer program skeleton
 
@@ -501,7 +512,8 @@ except Exception as e:
 c = Client(sok = sok,
            local_as = equal_parms["local-as"],
            router_id = equal_parms["router-id"],
-           as4_us = equal_parms["as4"])
+           as4_us = equal_parms["as4"],
+           rr_us = equal_parms["route-refresh"])
 c.wrpsok.set_quiet(bool(equal_parms["quiet"]))
 if equal_parms["tcp-hex"]:
     # hex dump of all data sent/received over TCP
@@ -612,4 +624,6 @@ while True:
                             c.env.as4 = c.as4_us
                             bmisc.stamprint("Peer advertised 4-byte AS ("+
                                             str(as4_num)+")")
+                        if cap.code == brepr.capabilities.refr:
+                            bmisc.stamprint("Peer advertised route-refresh")
 
