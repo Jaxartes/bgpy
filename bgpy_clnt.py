@@ -538,13 +538,14 @@ bmisc.stamprint("Started.")
 sok = socket.socket(socket.AF_INET, socket.SOCK_STREAM,
                     socket.IPPROTO_TCP)
 
-bind_to = ("0.0.0.0", brepr.BGP_TCP_PORT)
+bind_to = ("0.0.0.0", 0)
 do_bind = False
 
 if equal_parms["local-addr"] != "":
     bind_to = (equal_parms["local-addr"], bind_to[1])
     do_bind = True
 if equal_parms["passive"]:
+    bind_to = (bind_to[0], brepr.BGP_TCP_PORT)
     do_bind = True
 
 if do_bind:
