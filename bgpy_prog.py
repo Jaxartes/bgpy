@@ -193,6 +193,12 @@ def basic_orig(commanding, client, argv):
                 IGP
                 EGP
                 INCOMPLETE
+        com=0x00010002,0x00030004
+        xcom=0x0102030405060708,0x090a0b0c0d0e0f10
+            Specify communities to put on the routes; all
+            communities specified in a single string delimited by commas.
+            "com" specifies RFC1997 communities; "xcom" specifies
+            RFC4360 extended communities
         file=path/name
             Parse further name-value pairs from named file.  One pair on
             each line; ignores blank lines and lines beginning with "#".
@@ -236,6 +242,12 @@ def basic_orig(commanding, client, argv):
             bmisc.EqualParms_parse_enum(brepr.origin_code))
     cfg.parse("origin=INCOMPLETE")
     cfg.add_parse_file("file", "read name-value pairs from file")
+    cfg.add("com", "communities (RFC1997)",
+            bmisc.EqualParms_parse_Choosable(do_concat = True))
+    cfg["com"] = bmisc.ChoosableConcat()
+    cfg.add("xcom", "extended communities (RFC4360)",
+            bmisc.EqualParms_parse_Choosable(do_concat = True))
+    cfg["xcom"] = bmisc.ChoosableConcat()
 
     for arg in argv:
         cfg.parse(arg)
@@ -390,6 +402,32 @@ def basic_orig(commanding, client, argv):
                                             brepr.attr_flag.Transitive,
                                             brepr.attr_code.NEXT_HOP,
                                             bmisc.parse_ipv4(nh_str)))
+
+            # attribute: COMMUNITY (RFC1997)
+            if len(cfg["com"]):
+                communities_str = prng.choice(cfg["com"])
+            else:
+                communities_str = ""
+            if communities_str is not "":
+                communities = bmisc.parse_communities(communities_str)
+                attrs.append(brepr.BGPAttribute(client.env,
+                                                brepr.attr_flag.Optional|
+                                                brepr.attr_flag.Transitive,
+                                                brepr.attr_code.COMMUNITY,
+                                                communities))
+
+            # attribute: EXTENDED_COMMUNITIES (RFC4360)
+            if len(cfg["xcom"]):
+                xcommunities_str = prng.choice(cfg["xcom"])
+            else:
+                xcommunities_str = ""
+            if xcommunities_str is not "":
+                xcommunities = bmisc.parse_xcommunities(xcommunities_str)
+                attrs.append(brepr.BGPAttribute(client.env,
+                                                brepr.attr_flag.Optional|
+                                                brepr.attr_flag.Transitive,
+                                                brepr.attr_code.EXTENDED_COMMUNITIES,
+                                                xcommunities))
 
             # attribute: AS4_PATH, only under limited circumstances
             if as4path is not None:

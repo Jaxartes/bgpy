@@ -722,7 +722,7 @@ def EqualParms_parse_i32_ip(ep, n, pv, s):
     try:
         i = EqualParms_parse_i32(ep, n, pv, s)
         ba = bytearray()
-        bmisc.ba_put_be4(ba, i)
+        ba_put_be4(ba, i)
         return(bytes(ba))
     except: pass
     raise Exception(n+" must be either an IPv4 address in dotted"+
@@ -877,6 +877,41 @@ def parse_as(s):
     if i < 0 or i > 4294967295:
         raise Exception(repr(s)+" is not a valid AS number")
     return(i)
+
+def parse_communities(s):
+    """parse_communities() parses a string representing a list of BGP
+    communities (RFC1997), delimited by ",".
+
+    For now it only accepts them as 32-bit integers, none of the names
+    or notations recognized on other implementations.
+    That should be changed some time XXX."""
+
+    ba = bytearray()
+
+    if s is not "":
+        for sub in s.split(","):
+            sub = int(sub)
+            ba_put_be4(ba, sub & 0xffffffff)
+
+    return(bytes(ba))
+
+def parse_xcommunities(s):
+    """parse_communities() parses a string representing a list of BGP
+    extended communities (RFC4360), delimited by ",".
+
+    For now it only accepts them as 64-bit integers, none of the other
+    notations recognized on other implementations.
+    That should be changed some time XXX."""
+
+    ba = bytearray()
+
+    if s is not "":
+        for sub in s.split(","):
+            sub = int(sub)
+            ba_put_be4(ba, (sub >> 32) & 0xffffffff)
+            ba_put_be4(ba, sub & 0xffffffff)
+
+    return(bytes(ba))
 
 def EqualParms_parse_as(ep, n, pv, s):
     """Wrapper around parse_as() for use in EqualParms."""
