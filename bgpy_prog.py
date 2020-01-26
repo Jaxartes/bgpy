@@ -378,6 +378,9 @@ def basic_orig(commanding, client, argv):
                     as4path = aspath.fourify(env4, True)
                     as4path_flags |= brepr.attr_flag.Partial
             aspath = aspath.make_binary_rep(client.env)
+            if as4path is not None and len(as4path.segs) == 0:
+                # special case: "as4path=" suppresses the AS4_PATH attribute
+                as4path = None
             if as4path is not None:
                 as4path = as4path.make_binary_rep(env4)
 

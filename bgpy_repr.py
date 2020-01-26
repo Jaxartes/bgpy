@@ -987,7 +987,14 @@ class ASPath(BGPThing):
             arg = args[0]
 
         # if the argument is a string, parse it as user input
-        if type(args[0]) is str:
+        if args[0] is "":
+            # Special case: empty AS path
+            self.segs = []
+            self.two = True
+
+            BGPThing.__init__(self, env, self.make_binary_rep(env))
+            return
+        elif type(args[0]) is str:
             self.segs = []
             self.two = True
 
