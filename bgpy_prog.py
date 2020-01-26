@@ -52,11 +52,9 @@ def idler(commanding, client, argv):
                     Range 1.0 up; default 3.0; recommended 3.0 up.  No matter
                     what the value here, the interval between keepalives will
                     be at least 1 second, as mandated by RFC 4271 4.4.
-        XXX add BGP "capabilities"
     """
 
-    if client.open_sent is not None:
-        pass # XXX log a message about having already sent an Open
+    progname = "idler"
 
     hold_time = 180
     keepalive_ratio = 3.0
@@ -83,6 +81,23 @@ def idler(commanding, client, argv):
 
         # It's nothing good; 'e' says what's wrong.
         raise Exception("idler arguments error: " + e)
+
+    # wait for a connection
+    while client.listen_mode:
+        bmisc.stamprint(progname + ": waiting for connection")
+        yield boper.NEXT_TIME
+
+    if client.open_sent is not None:
+        pass # XXX log a message about having already sent an Open
+
+    # We have a connection and are ready to send an Open.  I think some
+    # implementations might, when on the "passive" side of the TCP connection,
+    # wait for the other side's OPEN.  But RFC 4271 says "Once the TCP
+    # connection is completed, it doesn't matter which end was active and
+    # which was passive," so it seems we shouldn't have to wait like that.
+
+    # If you want to delay the sending of "Open", run "idler" on a timer,
+    # e.g. with "@after 60 run idler" on the command line.
 
     # Build a BGP Open message & queue it for sending
     open_parms = []

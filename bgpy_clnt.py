@@ -182,13 +182,17 @@ class Commanding(object):
                 print("Syntax error in 'quiet'",
                       file=self.client.get_error_channel())
                 return
-            self.client.wrpsok.set_quiet(True)
+            self.client.quiet = True
+            if self.client.wrpsok is not None:
+                self.client.wrpsok.set_quiet(True)
         elif words[0] == "noquiet":
             if len(words) != 1:
                 print("Syntax error in 'noquiet'",
                       file=self.client.get_error_channel())
                 return
-            self.client.wrpsok.set_quiet(False)
+            self.client.quiet = False
+            if self.client.wrpsok is not None:
+                self.client.wrpsok.set_quiet(False)
         elif words[0] == "resume":
             if len(words) != 2:
                 print("Syntax error in 'resume'",
@@ -351,7 +355,9 @@ class Client(object):
                  holdtime_sec = 60,
                  holdtime_expiry = default_holdtime_expiry,
                  as4_us = False,
-                 rr_us = False
+                 rr_us = False,
+                 listen_mode = False,
+                 quiet = False
                  ):
         """Constructor.  Various parameters:
         Required:
@@ -370,6 +376,11 @@ class Client(object):
                 whether it's actually implemented depends on the peer
             rr_us -- whether to advertise route refresh capability (RFC 2918);
                 the actual functionality is not implemented in bgpy
+            listen_mode -- whether we're waiting for a connection (True)
+                or are already connected (False); True is normal operation
+                and is the usual case
+            quiet -- whether to suppress many details of what we're doing
+                from the log output
         """
 
         if type(holdtime_sec) is not int:
@@ -381,7 +392,13 @@ class Client(object):
 
         self.env = brepr.BGPEnv()
         self.sok = sok
-        self.wrpsok = boper.SocketWrap(sok, self.env)
+        self.listen_mode = listen_mode
+        self.quiet = quiet
+        if self.listen_mode:
+            self.wrpsok = None # not connected, can't wrap it yet
+        else:
+            self.wrpsok = boper.SocketWrap(sok, self.env)
+            self.wrpsok.set_quiet(self.quiet)
         self.local_as = local_as
         if type(router_id) is int:
             if (router_id >> 32):
@@ -402,13 +419,40 @@ class Client(object):
         self.as4_us = as4_us
         self.rr_us = rr_us
 
-        bmisc.stamprint("Connected.")
+        if self.listen_mode:
+            bmisc.stamprint("Listening.")
+        else:
+            bmisc.stamprint("Connected.")
 
     def get_error_channel(self):
         return(self.errfile)
 
     def get_output_channel(self):
         return(self.outfile)
+
+    def accept_connection(self):
+        """Accept a connection on this client's socket, moving it out of
+        listen_mode into normal operation."""
+
+        # sanity check
+        if not self.listen_mode or self.wrpsok is not None:
+            raise Exception("internal error, accepting connection"+
+                            " twice or something")
+
+        # get a connection
+        sok, remote = self.sok.accept()
+
+        # close and replace the socket since we won't be accepting
+        # any more connections on it
+        self.sok.close()
+        self.sok = sok
+        self.wrpsok = boper.SocketWrap(sok, self.env)
+        self.wrpsok.set_quiet(self.quiet)
+        self.listen_mode = False
+
+        # and announce what's happened
+        bmisc.stamprint("Accepted connection from "+repr(remote))
+        # XXX it'd be nice to turn 'remote' into something more human-readable
 
 ## ## ## Command line parameter handling
 
@@ -447,6 +491,11 @@ equal_parms.add("route-refresh",
                 bmisc.EqualParms_parse_num_rng(mn=0, mx=1))
 equal_parms.parse("route-refresh=0") # default value
 equal_parms.add_alias("rr", "route-refresh")
+
+equal_parms.add("passive",
+                "Accept (one) connection instead of initiating one",
+                bmisc.EqualParms_parse_num_rng(mn=0, mx=1))
+equal_parms.parse("passive=0") # default value
 
 ## ## ## outer program skeleton
 
@@ -489,32 +538,49 @@ bmisc.stamprint("Started.")
 sok = socket.socket(socket.AF_INET, socket.SOCK_STREAM,
                     socket.IPPROTO_TCP)
 
+bind_to = ("0.0.0.0", brepr.BGP_TCP_PORT)
+do_bind = False
+
 if equal_parms["local-addr"] != "":
+    bind_to = (equal_parms["local-addr"], bind_to[1])
+    do_bind = True
+if equal_parms["passive"]:
+    do_bind = True
+
+if do_bind:
     try:
-        sok.bind((equal_parms["local-addr"], 0))
+        sok.bind(bind_to)
     except Exception as e:
-        print("Failed to bind to "+equal_parms["local-addr"]+": "+str(e),
-             file=sys.stderr)
+        print("Failed to bind to "+repr(bind_to)+": "+str(e), file=sys.stderr)
         if dbg.estk:
             print_exc(file=sys.stderr)
         sys.exit(1)
 
-try:
-    sok.connect((peer_addr, brepr.BGP_TCP_PORT))
-        # XXX maybe add an optional parameter for remote TCP port
-except Exception as e:
-    print("Failed to connect to "+peer_addr+" port "+
-          str(brepr.BGP_TCP_PORT)+": "+str(e), file=sys.stderr)
-    if dbg.estk:
-        print_exc(file=sys.stderr)
-    sys.exit(1)
+if equal_parms["passive"]:
+    # accept (one) connection
+    sok = sok
+    sok.listen(0)
+    listen_mode = True
+else:
+    # make connection
+    try:
+        sok.connect((peer_addr, brepr.BGP_TCP_PORT))
+            # XXX maybe add an optional parameter for remote TCP port
+    except Exception as e:
+        print("Failed to connect to "+peer_addr+" port "+
+              str(brepr.BGP_TCP_PORT)+": "+str(e), file=sys.stderr)
+        if dbg.estk:
+            print_exc(file=sys.stderr)
+        sys.exit(1)
+    listen_mode = False
 
 c = Client(sok = sok,
            local_as = equal_parms["local-as"],
            router_id = equal_parms["router-id"],
            as4_us = equal_parms["as4"],
-           rr_us = equal_parms["route-refresh"])
-c.wrpsok.set_quiet(bool(equal_parms["quiet"]))
+           rr_us = equal_parms["route-refresh"],
+           listen_mode = listen_mode,
+           quiet = bool(equal_parms["quiet"]))
 if equal_parms["tcp-hex"]:
     # hex dump of all data sent/received over TCP
     tcp_hex_ipos = [0]
@@ -562,8 +628,13 @@ while True:
     rlist = []
     wlist = []
     xlist = []
-    if c.wrpsok.want_recv(): rlist.append(c.sok)
-    if c.wrpsok.want_send(): wlist.append(c.sok)
+    if c.wrpsok is not None:
+        # there's a connection, see what we can do on it
+        if c.wrpsok.want_recv(): rlist.append(c.sok)
+        if c.wrpsok.want_send(): wlist.append(c.sok)
+    elif c.listen_mode:
+        # we're listening for a connection, see if there is one
+        rlist.append(c.sok)
 
     # Add the command interface (stdin).  Windows won't like this since it's
     # not a socket.
@@ -585,10 +656,14 @@ while True:
         # send some of any pending messages
         c.wrpsok.able_send()
     if c.sok in rlist:
-        # receive some messages
-        if not c.wrpsok.able_recv():
-            bmisc.stamprint("Connection was closed")
-            break
+        if c.listen_mode:
+            # accept a connection
+            c.accept_connection()
+        else:
+            # receive some messages
+            if not c.wrpsok.able_recv():
+                bmisc.stamprint("Connection was closed")
+                break
     if sys.stdin in rlist:
         # Read a command.  Note that if stdin has only part of a line,
         # not a whole line, this is going to block; the whole program
@@ -602,7 +677,12 @@ while True:
             print("Command failure: "+str(e), file=sys.stderr)
             if dbg.estk:
                 print_exc(file=sys.stderr)
+
+    # read messages that we've received
     while True:
+        if c.wrpsok is None:
+            # no connection, can't have received any
+            break
         try:
             msg = c.wrpsok.recv()
         except Exception as e:
