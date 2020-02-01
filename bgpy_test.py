@@ -451,3 +451,8 @@ def Partition_test(count = 3, size = 10, seed = 123):
 
     # XXX code & test & use this test
 
+def mask_check_test():
+    """Test bmisc.mask_check()."""
+
+    # XXX code & test & use this test
+

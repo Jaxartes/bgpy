@@ -147,7 +147,6 @@ err_code = ConstantSet(
 #   (BGP Cease NOTIFICATION message subcodes)
 # https://www.iana.org/assignments/bgp-parameters/route-refresh-error-subcodes.csv
 #   (BGP ROUTE-REFRESH Message Error subcodes)
-# XXX consider remaking these as a single constant set of 2-tuples
 err_sub_msghdr = ConstantSet(
     ( "unspec", "Unspecific",                   0 ),    # RFC Errata 4493
     ( "notsyn", "Connection Not Synchronized",  1 ),    # RFC 4271
@@ -370,11 +369,13 @@ class IPv4Prefix(BGPThing):
             self.pfx = bytes(pc)
         elif len(args) == 2:
             # prefix & masklen; store it
-            # XXX check that the prefix doesn't extend beyond the masklen
             self.pfx = bytes(args[0])
             self.ml = int(args[1])
             if self.ml < 0 or self.ml > 32:
                 raise Exception("mask length "+ str(self.ml) + " out of range")
+            if bmisc.mask_check(self.pfx, self.ml)[1]:
+                a = ".".join(map(str, self.pfx)) + "/" + str(self.ml)
+                raise Exception(a + " has host bits set")
             # sanitize the length
             nbytes = (self.ml + 7) >> 3
             if len(self.pfx) < nbytes:

@@ -549,10 +549,6 @@ def sim_topo(commanding, client, argv):
             typical number of neighbors each node is linked to
         dump=1
             dump the table we generated to the log as soon as we've got it
-
-    XXX There are some notable inefficiencies in this code, esp how when
-    it tries to pick a node for something it just picks one and sees
-    if it's suitable, and if it's not repeats until it finds one.
     """
 
     global sim_topo_data
@@ -706,6 +702,14 @@ def sim_topo(commanding, client, argv):
 
     # that's all
     bmisc.stamprint(progname + ": done; provided data")
+
+    # There are some notable inefficiencies in "sim_topo", esp how when
+    # it tries to pick a node for something it just picks one and sees
+    # if it's suitable, and if it's not repeats until it finds one.
+    # But testing shows them not to be that severe (nodes=100000 takes
+    # 170 seconds in my test) and doing something about it would make
+    # the code more complicated.
+
 
 _programmes["sim_topo"] = sim_topo
 

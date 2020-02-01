@@ -956,3 +956,28 @@ class Partition(object):
         """Determine if two elements are in the same subset."""
 
         return(self.sub_get(elt1) == self.sub_get(elt2))
+
+def mask_check(pfx, ml):
+    """Check the address 'pfx' against the mask length 'ml'.
+    Expects 'pfx' in the form of bytes().
+
+    Returns two booleans in a tuple.
+        1. whether there are any '1' bits on the left side
+        2. whether there are any '1' bits on the right side
+    Thus, for a proper network range like 1.0.0.0/8, (*, False)."""
+
+    lft = rgt = False
+    for i in range(len(pfx)):
+        b = pfx[i] # one byte
+        j = i * 8 # leftmost bit position in this byte
+        k = j + 7 # rightmost bit position in this byte
+        if k < ml:
+            lmask = 255
+        elif j < ml:
+            lmask = 255 - (255 >> (ml - j))
+        else:
+            lmask = 0
+        rmask = 255 - lmask
+        if b & lmask: lft = True
+        if b & rmask: rgt = True
+    return((lft, rgt))

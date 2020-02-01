@@ -463,7 +463,6 @@ class Client(object):
 
         # and announce what's happened
         bmisc.stamprint("Accepted connection from "+repr(remote))
-        # XXX it'd be nice to turn 'remote' into something more human-readable
 
 ## ## ## Command line parameter handling
 
@@ -577,7 +576,6 @@ else:
     # make connection
     try:
         sok.connect((peer_addr, brepr.BGP_TCP_PORT))
-            # XXX maybe add an optional parameter for remote TCP port
     except Exception as e:
         print("Failed to connect to "+peer_addr+" port "+
               str(brepr.BGP_TCP_PORT)+": "+str(e), file=sys.stderr)

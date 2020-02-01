@@ -117,7 +117,7 @@ class SocketWrap(object):
         if self.ibroke:
             bmisc.stamprint("SocketWrap.able_recv() doing nothing: conn broken")
             return
-        get = 8 # XXX change this to something bigger after testing
+        get = 512
         try:
             got = self.sok.recv(get)
         except BrokenPipeError:
