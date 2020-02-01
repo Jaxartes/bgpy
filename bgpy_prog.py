@@ -38,6 +38,9 @@ import bgpy_oper as boper
 
 _programmes = dict()
 
+sim_topo_data = None
+prng = random.Random(time.time())
+
 ## ## ## Canned programme: "idler"
 
 def idler(commanding, client, argv):
@@ -198,6 +201,9 @@ def basic_orig(commanding, client, argv):
 
             An empty AS path is permitted by this program, and in some
             cases by the standard.
+
+            If the "sim_topo" programme has been run, its results will
+            override the aspath= setting.
         as4path=1,2,3,(400000-500000)
             Not usually needed.  Normally the AS4_PATH attribute, if needed,
             is generated based on 'aspath'.  But if you want to override
@@ -302,9 +308,6 @@ def basic_orig(commanding, client, argv):
 
     ## ## storage of current state
 
-    # pseudorandom number generator
-    prng = random.Random(time.time())
-
     # advertised route slots
     s_full = [] # True for each slot that's full
     s_dest = [] # destination used for this slot, or None if unassigned
@@ -371,8 +374,10 @@ def basic_orig(commanding, client, argv):
 
             # attribute AS_PATH: 2 or 4 bytes per AS
             # And prepare AS4_PATH
-            aspath_str = prng.choice(cfg["aspath"])
-            aspath = brepr.ASPath(client.env, aspath_str)
+            if sim_topo_data is not None and len(sim_topo_data) > 0:
+                aspath = prng.choice(sim_topo_data)
+            else:
+                aspath = brepr.ASPath(client.env, prng.choice(cfg["aspath"]))
             as4path = None
             as4path_flags = (brepr.attr_flag.Transitive |
                              brepr.attr_flag.Optional)
@@ -519,6 +524,183 @@ def notifier(commanding, client, argv):
     client.wrpsok.send(msg)
 
 _programmes["notifier"] = notifier
+
+## ## ## Canned programme: "sim_topo"
+
+def sim_topo(commanding, client, argv):
+    """ "sim_topo" canned programme: Generates AS paths which another
+    programme like "basic_orig" can use for the routes it
+    generates and sends out.  The intention is a little more verisimilitude
+    than you can get into such a program through its own configuration
+    options.
+
+    The result, once available, is then made available to other programmes
+    that want it, in 'sim_topo_data', a sequence of bmisc.ASPath() objects
+    for use.
+
+    Name=value parameters taken by sim_topo:
+        nodes=10
+            number of virtual routers to create including us
+        as=(1000-3000)
+            AS numbers to use, other than our own
+        linking=2.5
+            typical number of neighbors each node is linked to
+        dump=1
+            dump the table we generated to the log as soon as we've got it
+    XXX detect iBGP & skip prepending our own AS number in that case
+    """
+
+    global sim_topo_data
+
+    ## configuration via name-value pairs
+    progname = "sim_topo"
+    cfg = bmisc.EqualParms()
+    cfg.add("nodes", "Number of virtual routers",
+            bmisc.EqualParms_parse_num_rng(mn=3, mx=1000000))
+    cfg["nodes"] = 25
+    cfg.add("as", "AS numbers other than our own",
+            bmisc.EqualParms_parse_Choosable(do_concat = True))
+    cfg["as"] = bmisc.ChoosableConcat()
+    cfg.add("linking", "Typical number of neighbors per node",
+            bmisc.EqualParms_parse_num_rng(t = float, mn = 2, mx = 100))
+    cfg["linking"] = 2.5
+    cfg.add("dump", "Dump result to log",
+            bmisc.EqualParms_parse_num_rng(mn = 0, mx = 1))
+    cfg["dump"] = 0
+
+    for arg in argv:
+        cfg.parse(arg)
+
+    if len(cfg["as"]) == 0:
+        cfg.parse("as=(1000-1999)")
+
+    if len(cfg["as"]) < cfg["nodes"] * 1.1 + 10:
+        raise Exception("'as' setting needs a bigger range"+
+                        " to handle this many 'nodes'")
+
+    ## wait for connection to be established before doing anything
+    while ((client.open_recv is None) or (client.open_sent is None)):
+        yield boper.NEXT_TIME
+
+    ## now we know local and remote AS numbers, iBGP/eBGP etc, and can proceed
+    las = client.local_as
+    ras = client.open_recv.my_as
+    ibgp = (las == ras)
+    if ibgp:
+        ibgpword = "iBGP"
+    else:
+        ibgpword = "EBGP"
+    bmisc.stamprint(progname +
+                    ": local as "+str(las)+", remote as "+str(ras)+
+                    " this is "+ibgpword)
+
+    ## link all the nodes together
+
+    # internal data structures:
+    #       result - triples of IPv4 addr, IPv6 addr, ASPath(); will
+    #               be exported as sim_topo_data once it's filled in
+    #       links - for each node, list of its linked neighbors
+    #       partition - which nodes can reach which others
+    result = set()
+    links = list(map(lambda n: [], range(cfg["nodes"])))
+    partition = bmisc.Partition(range(cfg["nodes"]))
+    links_todo = int((cfg["nodes"] * cfg["linking"] + 1) / 2)
+    initial_links_todo = cfg["nodes"] - 1
+
+    # initial links to join everything together
+    while initial_links_todo > 0:
+        yield bmisc.tor.get() # let events be processed
+
+        # pick two nodes that can't reach each other yet
+        n1 = prng.randrange(0, cfg["nodes"])
+        n2 = prng.randrange(0, cfg["nodes"])
+        if partition.sub_same(n1, n2):
+            continue
+
+        # link these two
+        links_todo -= 1
+        initial_links_todo -= 1
+        links[n1].append(n2)
+        links[n2].append(n1)
+        partition.sub_join(n1, n2)
+
+    ## additional links as desired
+    while links_todo > 0:
+        yield bmisc.tor.get() # let events be processed
+        # XXX add a special yield code for "immediately" & use it here
+
+        n1 = prng.randrange(0, cfg["nodes"])
+        n2 = prng.randrange(0, cfg["nodes"])
+        if n1 != n2 and n1 not in links[n2]:
+            # make a link
+            links_todo -= 1
+            links[n1].append(n2)
+            links[n2].append(n1)
+        elif prng.randrange(0, 5) < 1:
+            # pretend we made a link, so we don't get stuck forever
+            links_todo -= 1
+
+    ## pick AS numbers for nodes
+
+    #       as_nums - for each node, its AS number
+    as_nums = [None] * cfg["nodes"]
+
+    # I'm node zero.
+    as_nums[0] = las
+
+    # pick AS numbers for all the other nodes
+    as_seen = {las, ras}
+    for n in range(1, cfg["nodes"]):
+        yield bmisc.tor.get() # let events be processed
+
+        # pick an AS number we haven't used yet
+        while True:
+            a_s = int(prng.choice(cfg["as"]))
+            if a_s not in as_seen:
+                break
+
+        # put it on
+        as_nums[n] = a_s
+        as_seen.add(a_s)
+
+    ## build the result: an AS path to each node
+
+    data = [None] * cfg["nodes"] # AS path data, for now as strings
+    data[0] = str(as_nums[0])
+
+    nodes_to_path = cfg["nodes"] - 1
+    while nodes_to_path > 0:
+        yield bmisc.tor.get() # let events be processed
+
+        # Pick a node and one of its neighbors.  If we have a path for
+        # the first and not the second, make a path for the second.
+        n = prng.randrange(cfg["nodes"])
+        if data[n] is None:
+            continue
+        nn = prng.choice(links[n])
+        if data[nn] is not None:
+            continue
+        data[nn] = data[n] + "," + str(as_nums[nn])
+        nodes_to_path -= 1
+
+    # now convert that data to ASPath()
+    for n in range(cfg["nodes"]):
+        data[n] = brepr.ASPath(client.env, data[n])
+
+    # dump the result if configured to do so
+    if cfg["dump"]:
+        for n in range(cfg["nodes"]):
+            bmisc.stamprint(progname + ": node " + str(n) +
+                            " path " + str(data[n]) + " neigh " +
+                            (",".join(map(str, links[n]))))
+
+    # put the result on
+    sim_topo_data = data
+
+    # that's all
+    bmisc.stamprint(progname + ": done; provided data")
+
+_programmes["sim_topo"] = sim_topo
 
 ## ## ## Register all the canned programmes
 

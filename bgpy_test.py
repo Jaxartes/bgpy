@@ -33,6 +33,7 @@ intended when connected to a real BGP implementation is the goal."""
 
 from sys import stderr
 import bgpy_misc as bmisc
+import random
 
 class TestFailureError(Exception):
     def __init__(self, msg = "Mismatch, test failed", g = None, e = None):
@@ -444,4 +445,9 @@ def parse_ipv6_test():
             raise TestFailureError()
 
     print("parse_ipv6_test completed ok", file=stderr)
+
+def Partition_test(count = 3, size = 10, seed = 123):
+    """Test bmisc.Partition()."""
+
+    # XXX code & test & use this test
 

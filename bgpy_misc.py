@@ -919,3 +919,40 @@ def EqualParms_parse_as(ep, n, pv, s):
         return(parse_as(s))
     except: pass
     raise Exception(n+" must be an AS number in RFC 5396 format")
+
+class Partition(object):
+    """Partition a set into disjoint subsets in such a way that you can
+    easily:
+        join two subsets
+        tell whether two members are in the same subset
+    """
+
+    __slots__ = frozenset(["set", "e2s"])
+    # self.set: elements
+    # self.e2s: maps each element to some element in the same subset
+
+    def __init__(self, set):
+        """Create a Partition() of a set, initially having each element
+        be by itself."""
+
+        self.set = frozenset(set)
+        self.e2s = dict()
+        for elt in self.set:
+            self.e2s[elt] = elt
+
+    def sub_get(self, elt):
+        """What subset an element is in? Returns an element identifying it."""
+
+        while self.e2s[elt] != self.e2s[self.e2s[elt]]:
+            self.e2s[elt] = self.e2s[self.e2s[elt]]
+        return(self.e2s[elt])
+
+    def sub_join(self, elt1, elt2):
+        """Combine the subsets two elements are in."""
+
+        self.e2s[self.sub_get(elt1)] = self.sub_get(elt2)
+
+    def sub_same(self, elt1, elt2):
+        """Determine if two elements are in the same subset."""
+
+        return(self.sub_get(elt1) == self.sub_get(elt2))
