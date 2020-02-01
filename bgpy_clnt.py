@@ -157,6 +157,8 @@ class Commanding(object):
             except Exception as e:
                 print("Programme '"+pname+"' had error: "+
                       repr(e), file=self.client.get_error_channel())
+                if dbg.estk:
+                    print_exc(file=self.client.get_error_channel())
             if it is None:
                 # Huh, programme completed immediately instead of producing
                 # an iterator.  No need to remember it, it's done.
@@ -316,6 +318,8 @@ class Commanding(object):
                 except Exception as e:
                     print("Programme '"+pname+"' had error: "+
                           repr(e), file=self.client.get_error_channel())
+                    if dbg.estk:
+                        print_exc(file=self.client.get_error_channel())
                     del self.programme_iterator_times[pname]
                     del self.programme_iterators[pname]
 
