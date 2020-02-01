@@ -574,6 +574,7 @@ class EqualParms(object):
         self.parsers = dict() # parse each parameter value from string
         self.values = dict() # values parsed if any
         self.storers = dict() # callbacks to store results
+        self.ats = None # "@" strings: a list() if enabled
 
     def add_alias(self, name, cname):
         """Define an alias, named 'name', pointing to 'cname'."""
@@ -603,6 +604,11 @@ class EqualParms(object):
         self.add(name, desc,
                  storer = lambda path: self.parse_file(path))
 
+    def add_at_list(self, lst):
+        """Specify a list, to which will be added any strings prefixed
+        with "@" instead of parsing them as name-value pairs."""
+        self.ats = lst
+
     def describe(self):
         "Iterate over names known, with descriptions, for help purposes."
 
@@ -617,6 +623,12 @@ class EqualParms(object):
 
     def parse(self, arg):
         "Parse a name=value pair from string."
+        if self.ats is not None and arg[0] == "@":
+            # special case: strings prefixed with "@" get put in a list
+            # instead of parsing them as name=value
+            self.ats.append(arg[1:])
+            return
+
         try:
             (n, v) = arg.split("=", 1)
         except:

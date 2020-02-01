@@ -44,6 +44,8 @@ Brief usage guide:
             local-addr= -- bind to specified local address
             as4=1 -- enable 4-byte AS if the peer supports it
             @command... -- run "command..." as if it was issued on stdin
+            file=path/name -- read name=value and @command parameters
+                              from named file
     Programmes
         These are the things that actually do something.
         See bgpy_prog.py.

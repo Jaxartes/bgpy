@@ -159,6 +159,7 @@ class Commanding(object):
                       repr(e), file=self.client.get_error_channel())
                 if dbg.estk:
                     print_exc(file=self.client.get_error_channel())
+                return
             if it is None:
                 # Huh, programme completed immediately instead of producing
                 # an iterator.  No need to remember it, it's done.
@@ -506,6 +507,11 @@ equal_parms.add("passive",
                 "Accept (one) connection instead of initiating one",
                 bmisc.EqualParms_parse_num_rng(mn=0, mx=1))
 equal_parms.parse("passive=0") # default value
+pre_commands = []
+equal_parms.add_at_list(pre_commands)
+
+equal_parms.add_parse_file("file",
+                           "read options (name=value or @cmd) from file")
 
 ## ## ## outer program skeleton
 
@@ -522,15 +528,7 @@ def usage():
 if len(sys.argv) < 2:
     usage()
 
-pre_commands = []
-
 for a in sys.argv[1:-1]:
-    # maybe it's a "@command..." to handle when ready
-    if a[0] == "@":
-        pre_commands.append(a[1:])
-        continue
-
-    # or else it's a name=value pair, match against equal_parms and parse
     try:
         equal_parms.parse(a)
     except Exception as e:

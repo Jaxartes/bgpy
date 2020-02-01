@@ -86,9 +86,10 @@ def idler(commanding, client, argv):
         raise Exception("idler arguments error: " + e)
 
     # wait for a connection
-    while client.listen_mode:
+    if client.listen_mode:
         bmisc.stamprint(progname + ": waiting for connection")
-        yield boper.NEXT_TIME
+        while client.listen_mode:
+            yield boper.NEXT_TIME
 
     if client.open_sent is not None:
         bmisc.stamprint(progname + ": running after Open already sent," +
@@ -479,6 +480,23 @@ def notifier(commanding, client, argv):
         notification subcode (numeric; depends on main code)
         (optional) data (hexadecimal, or "text:" followed by text)
     """
+
+    progname = "notifier"
+
+    if client.listen_mode:
+        bmisc.stamprint(progname + ": waiting for connection")
+        while client.listen_mode:
+            yield boper.NEXT_TIME
+
+    if client.open_sent is None:
+        # We haven't sent an OPEN, and RFC 4271 says the first message each
+        # side sends is an OPEN.  So, put one together.
+        bmisc.stamprint(progname +
+                        ": sending Open since it hasn't been done yet")
+        msg = brepr.BGPOpen(client.env, brepr.bgp_ver.FOUR,
+                            client.local_as, 180, client.router_id, [])
+        client.wrpsok.send(msg)
+        client.open_sent = msg
 
     # Parse and check argv[]
     if len(argv) < 2:
