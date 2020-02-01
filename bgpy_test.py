@@ -446,13 +446,107 @@ def parse_ipv6_test():
 
     print("parse_ipv6_test completed ok", file=stderr)
 
-def Partition_test(count = 3, size = 10, seed = 123):
+def Partition_test(count = 3, size = 10, seed = 123, verbose = False):
     """Test bmisc.Partition()."""
 
-    # XXX code & test & use this test
+    prng = random.Random(seed)
 
-def mask_check_test():
+    sets  = [] # list of lists of values to use in test
+    parts = [] # list of 'count' Partition() objects, each on its set
+    shads = [] # list of "shadows", containing the same information as
+               # a Partition object, in the form of a dict() mapping each
+               # value to the set of values in its part
+
+    print("Picking "+str(count)+" sets of "+str(size)+" integers", file=stderr)
+    for i in range(count):
+        sets.append([])
+        in_this_set = set()
+        while len(sets[i]) < size:
+            n = prng.randrange(0, 2 * size)
+            if n in in_this_set:
+                continue
+            in_this_set.add(n)
+            sets[i].append(n)
+        if verbose:
+            print("\tsets["+str(i)+"] = "+repr(sets[i]), file=stderr)
+
+    print("Building Partition()s and their shadows", file=stderr)
+    for i in range(count):
+        parts.append(bmisc.Partition(sets[i]))
+        shads.append(dict())
+        for v in sets[i]:
+            shads[i][v] = {v}
+
+    nops = prng.randrange(0, int(count * size * 1.25 + 2))
+    print("Performing "+str(nops)+" joins", file=stderr)
+    while nops > 0:
+        nops -= 1
+        i = prng.randrange(0, count)
+        v1 = prng.choice(sets[i])
+        v2 = prng.choice(sets[i])
+        if verbose:
+            print("\tparts["+str(i)+"].sub_join("+str(v1)+", "+str(v2)+")",
+                  file=stderr)
+        parts[i].sub_join(v1, v2)
+        u = shads[i][v1].union(shads[i][v2])
+        for v in u:
+            shads[i][v] = u
+
+    print("Checking resulting partition contents", file=stderr)
+    for i in range(count):
+        for v1 in sets[i]:
+            for v2 in sets[i]:
+                ss = parts[i].sub_same(v1, v2)
+                tt = v1 in shads[i][v2]
+                if ss != tt:
+                    print("ERROR!\n"+
+                          "parts["+str(i)+"].sub_same("+repr((v1, v2))+") ==> "+
+                          str(ss)+"\n" +
+                          str(v1)+" in shads["+str(i)+"]["+str(v2)+"] ==> "+
+                          str(tt), file=stderr)
+                    raise TestFailureError()
+        if verbose:
+            print("parts["+str(i)+"] matches shads["+str(i)+"]", file=stderr)
+
+    print("Partition_test completed ok", file=stderr)
+
+def mask_check_test(count=1000, seed=1, verbose=False):
     """Test bmisc.mask_check()."""
 
-    # XXX code & test & use this test
+    prng = random.Random(seed)
 
+    bits32 = 2**32 - 1
+
+    targets = ([(True, False)] * 10 + [(False, True)] * 10 +
+               [(True, True)] * 4 + [(False, False)])
+
+    for i in range(count):
+        # figure out target result
+        tlft, trgt = prng.choice(targets)
+        # pick a masklength
+        ml = prng.randint(0, 31)
+        # pick an address (as a number) & mask it as desired
+        full = prng.randint(0, bits32)
+        alft = full & (bits32 - (bits32 >> ml))
+        argt = full & (bits32 >> ml)
+        anum = 0
+        if not tlft: alft = 0
+        if not trgt: argt = 0
+        anum |= alft
+        anum |= argt
+        elft = (alft != 0)
+        ergt = (argt != 0)
+        # convert it into a list of byte values
+        addr = []
+        for j in range(24, -1, -8):
+            addr.append(255 & (anum >> j))
+        # perform the test:
+        glft, grgt = bmisc.mask_check(bytes(addr), ml)
+        if glft != elft or grgt != ergt or verbose:
+            print(str(i) + ": bmisc.mask_check" + repr((addr, ml)) +
+                  " ==> " + repr((glft, grgt)), file=stderr)
+        if glft != elft or grgt != ergt:
+            print("MISMATCH!", file=stderr)
+            raise TestFailureError()
+
+    print("make_check_test completed ok", file=stderr)
