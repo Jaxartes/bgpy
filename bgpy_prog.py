@@ -91,7 +91,9 @@ def idler(commanding, client, argv):
         yield boper.NEXT_TIME
 
     if client.open_sent is not None:
-        pass # XXX log a message about having already sent an Open
+        bmisc.stamprint(progname + ": running after Open already sent," +
+                        " will send again, which isn't good")
+        # It's not good, but I guess it's what you wanted...
 
     # We have a connection and are ready to send an Open.  I think some
     # implementations might, when on the "passive" side of the TCP connection,
@@ -547,7 +549,10 @@ def sim_topo(commanding, client, argv):
             typical number of neighbors each node is linked to
         dump=1
             dump the table we generated to the log as soon as we've got it
-    XXX detect iBGP & skip prepending our own AS number in that case
+
+    XXX There are some notable inefficiencies in this code, esp how when
+    it tries to pick a node for something it just picks one and sees
+    if it's suitable, and if it's not repeats until it finds one.
     """
 
     global sim_topo_data
@@ -609,7 +614,7 @@ def sim_topo(commanding, client, argv):
 
     # initial links to join everything together
     while initial_links_todo > 0:
-        yield bmisc.tor.get() # let events be processed
+        yield(boper.RIGHT_NOW) # let events be processed
 
         # pick two nodes that can't reach each other yet
         n1 = prng.randrange(0, cfg["nodes"])
@@ -626,8 +631,7 @@ def sim_topo(commanding, client, argv):
 
     ## additional links as desired
     while links_todo > 0:
-        yield bmisc.tor.get() # let events be processed
-        # XXX add a special yield code for "immediately" & use it here
+        yield(boper.RIGHT_NOW) # let events be processed
 
         n1 = prng.randrange(0, cfg["nodes"])
         n2 = prng.randrange(0, cfg["nodes"])
@@ -666,11 +670,14 @@ def sim_topo(commanding, client, argv):
     ## build the result: an AS path to each node
 
     data = [None] * cfg["nodes"] # AS path data, for now as strings
-    data[0] = str(as_nums[0])
+    if ibgp:
+        data[0] = []
+    else:
+        data[0] = [as_nums[0]]
 
     nodes_to_path = cfg["nodes"] - 1
     while nodes_to_path > 0:
-        yield bmisc.tor.get() # let events be processed
+        yield(boper.RIGHT_NOW) # let events be processed
 
         # Pick a node and one of its neighbors.  If we have a path for
         # the first and not the second, make a path for the second.
@@ -680,12 +687,12 @@ def sim_topo(commanding, client, argv):
         nn = prng.choice(links[n])
         if data[nn] is not None:
             continue
-        data[nn] = data[n] + "," + str(as_nums[nn])
+        data[nn] = data[n] + [as_nums[nn]]
         nodes_to_path -= 1
 
     # now convert that data to ASPath()
     for n in range(cfg["nodes"]):
-        data[n] = brepr.ASPath(client.env, data[n])
+        data[n] = brepr.ASPath(client.env, ",".join(map(str, data[n])))
 
     # dump the result if configured to do so
     if cfg["dump"]:

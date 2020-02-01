@@ -94,6 +94,8 @@ class Commanding(object):
                         yield boper.NEXT_TIME
             boper.WHILE_TX_PENDING -- Run when there are no outbound messages
                 queued for transmission.
+            boper.RIGHT_NOW -- Run next time through the event loop, and
+                make it soon.
         """
         if type(pname) is not str:
             raise TypeError("internal: handler name not a string: "+repr(pname))
@@ -289,6 +291,9 @@ class Commanding(object):
             elif t is boper.NEXT_TIME:
                 # This is "next time"
                 run_it = True
+            elif t is boper.RIGHT_NOW:
+                # This is "now"
+                run_it = True
             elif t is boper.WHILE_TX_PENDING:
                 # Run if the outbound buffer is empty.
                 run_it = (len(self.client.wrpsok.opnd) <= 0)
@@ -319,6 +324,8 @@ class Commanding(object):
                 pass # waiting indefinitely
             elif t is boper.NEXT_TIME:
                 pass # waiting until something else wakes us up
+            elif t is boper.RIGHT_NOW:
+                time_next = now # just go around again, no waiting
             elif t is boper.WHILE_TX_PENDING:
                 # We're to wait for the outbound buffer to empty.
                 if len(self.client.wrpsok.opnd) <= 0:

@@ -181,4 +181,11 @@ class WHILE_TX_PENDING(object):
     def __init__(self): pass
     def __repr__(self): return("WHILE_TX_PENDING()")
 
+# RIGHT_NOW -- Used in the Commanding class of bgpy_clnt.  A "programme"
+# can yield it to indicate it should be run again right away, but only after
+# going through the event loop again.
+@bmisc.single_instance
+class RIGHT_NOW(object):
+    def __init__(self): pass
+    def __repr__(self): return("RIGHT_NOW()")
 
