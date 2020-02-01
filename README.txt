@@ -20,9 +20,6 @@ Are almost infinite in number; some of the most notable:
     of routes
         - it makes the connection, reports what it receives, and sends
         what you tell it to
-    + bgpy is always the one to make the connection
-        - it doesn't accept the connection
-        - so the peer might as well be in "passive" mode
 
 Portability:
 bgpy needs Python version 3.  I've tested using python 3.4.10.  I've tested
@@ -45,6 +42,7 @@ Brief usage guide:
             router-id= -- set own router id
             tcp-hex=1 -- display the bytes exchanged with peer over TCP
             local-addr= -- bind to specified local address
+            as4=1 -- enable 4-byte AS if the peer supports it
             @command... -- run "command..." as if it was issued on stdin
     Programmes
         These are the things that actually do something.
