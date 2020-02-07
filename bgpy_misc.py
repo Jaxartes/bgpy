@@ -24,7 +24,9 @@
 # POSSIBILITY OF SUCH DAMAGE.
 "Miscelleneous utility routines and classes used by bgpy."
 
-import time, sys, socket
+import time, sys, socket, time, random
+
+common_prng = random.Random(time.time())
 
 class TimeOfRecord(object):
     """Keeps track of the current time, for use in time stamps and
@@ -931,6 +933,16 @@ def EqualParms_parse_as(ep, n, pv, s):
         return(parse_as(s))
     except: pass
     raise Exception(n+" must be an AS number in RFC 5396 format")
+
+def EqualParms_parse_PRNG(ep, n, pv, s):
+    """Wrapper to initialize a pseudorandom number generator from
+    the given seed string; or, for empty string, use a common one
+    based on the clock."""
+
+    if len(s):
+        return(random.Random(s))
+    else:
+        return(common_prng)
 
 class Partition(object):
     """Partition a set into disjoint subsets in such a way that you can

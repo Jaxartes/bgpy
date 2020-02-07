@@ -29,7 +29,7 @@ line and make various things happen."""
 
 ## ## ## Top matter
 
-import sys, time, random
+import sys
 
 from bgpy_misc import dbg
 import bgpy_misc as bmisc
@@ -39,7 +39,6 @@ import bgpy_oper as boper
 _programmes = dict()
 
 sim_topo_data = None
-prng = random.Random(time.time())
 
 ## ## ## Canned programme: "idler"
 
@@ -226,6 +225,10 @@ def basic_orig(commanding, client, argv):
         file=path/name
             Parse further name-value pairs from named file.  One pair on
             each line; ignores blank lines and lines beginning with "#".
+        seed=1234
+            Seed the pseudo random number generator with the specified
+            string; this is optional, but can provide repeatability.
+            Empty string uses a shared generator seeded from the clock.
     """
 
     ## configuration via name-value pairs
@@ -272,9 +275,14 @@ def basic_orig(commanding, client, argv):
     cfg.add("xcom", "extended communities (RFC4360)",
             bmisc.EqualParms_parse_Choosable(do_concat = True))
     cfg["xcom"] = bmisc.ChoosableConcat()
+    cfg.add("seed", "pseudorandom number generation seed",
+            bmisc.EqualParms_parse_PRNG)
+    cfg.parse("seed=")
 
     for arg in argv:
         cfg.parse(arg)
+
+    prng = cfg["seed"]
 
     if len(cfg["dest"]) < cfg["slots"]:
         raise Exception("\"basic_orig\" requires at least as many destinations"+
@@ -567,6 +575,10 @@ def sim_topo(commanding, client, argv):
             typical number of neighbors each node is linked to
         dump=1
             dump the table we generated to the log as soon as we've got it
+        seed=1234
+            Seed the pseudo random number generator with the specified
+            string; this is optional, but can provide repeatability.
+            Empty string uses a shared generator seeded from the clock.
     """
 
     global sim_topo_data
@@ -586,9 +598,14 @@ def sim_topo(commanding, client, argv):
     cfg.add("dump", "Dump result to log",
             bmisc.EqualParms_parse_num_rng(mn = 0, mx = 1))
     cfg["dump"] = 0
+    cfg.add("seed", "pseudorandom number generation seed",
+            bmisc.EqualParms_parse_PRNG)
+    cfg.parse("seed=")
 
     for arg in argv:
         cfg.parse(arg)
+
+    prng = cfg["seed"]
 
     if len(cfg["as"]) == 0:
         cfg.parse("as=(1000-1999)")
