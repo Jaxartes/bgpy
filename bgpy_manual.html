@@ -18,6 +18,9 @@
             font-style: italic;
             font-size: 200%;
         }
+        .lnkt, .lnka, .lnkd {
+            font-style: italic;
+        }
     </style>
 </head>
 <body>
@@ -33,6 +36,10 @@
     <hr/>
     <h2><a name="intro">Introduction</a></h2>
     <div class="XXX">write this</div>
+    This document is the manual for "bgpy," a limited implementation of
+    BGP in Python.  The "bgpy" software, including this document, may
+    be found at
+    <a href="https://github.com/Jaxartes/bgpy"><tt>https://github.com/Jaxartes/bgpy/</tt></a>.
 
     <h2><a name="toc">Table of contents</a></h2>
     Sections of this manual:
@@ -48,6 +55,22 @@
     </ul>
 
     <h2><a name="what">What "bgpy" is</a></h2>
+    <p>
+        "bgpy" is an implementation of parts of the BGP protocol in Python.
+        It's not a real router but it can send and receive BGP messages
+        and is usable for test purposes.
+    </p>
+    <p>
+        "bgpy," including this manual, is freely redistributable under a
+        BSD license.  The latest version may be found in the GIT
+        repository at
+        <a href="https://github.com/Jaxartes/bgpy"><tt>https://github.com/Jaxartes/bgpy/</tt></a>.
+    </p>
+    <p>
+        The name "bgpy" is derived from the name of the protocol (BGP)
+        and the language of its implementation (Python).  It is
+        pronounced "bee-gee-pie."
+    </p>
     <div class="XXX">write this</div>
 
     <h2><a name="usage">Usage by example</a></h2>
@@ -63,6 +86,19 @@
     <div class="XXX">write this</div>
 
     <h2><a name="links">Links</a></h2>
+    <p>
+        Some potentially useful, relevant web links:
+    <ul>
+        <li><a href="https://github.com/Jaxartes/bgpy"><tt>https://github.com/Jaxartes/bgpy/</tt></a> &mdash;
+            The "bgpy" GIT repository
+        </li>
+        <li><a href="https://tools.ietf.org/html/rfc4271">RFC4271</a> &mdash;
+            <span class="lnkt">A Border Gateway Protocol 4 (BGP-4)</span>,
+            <span class="lnka">Y. Rekhter, T. Li, S. Hares</span>,
+            <span class="lnkd">January 2006</span>.
+            Defines the BGP protocol.</li>
+    </ul>
+    </p>
     <div class="XXX">write this</div>
 
 </body>
