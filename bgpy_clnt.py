@@ -361,7 +361,6 @@ class Client(object):
 
     def __init__(self,
                  sok, local_as, router_id,
-                 cmdfile = sys.stdin,
                  outfile = sys.stdout,
                  errfile = sys.stderr,
                  holdtime_sec = 60,
@@ -378,9 +377,8 @@ class Client(object):
             router_id -- router ID -- 32 bit integer or IPv4 address
                 represented as int or 4 bytes
         Optional:
-            cmdfile -- command input stream, default is stdin
-            outfile -- regular output stream, default is stdin
-            errfile -- error output stream, default is stdin
+            outfile -- regular output stream, default is stdout
+            errfile -- error output stream, default is stderr
             holdtime_sec -- hold time to propose in seconds
             holdtime_expiry -- function (passed this Client object) to
                 call when the negotiated hold time has expired
@@ -422,7 +420,6 @@ class Client(object):
         if len(router_id) != 4:
             raise ValueError("Router id must be 32 bits")
         self.router_id = router_id
-        self.cmdfile = cmdfile
         self.outfile = outfile
         self.errfile = errfile
         self.holdtime_sec = holdtime_sec
@@ -627,6 +624,8 @@ for cmd in pre_commands:
 
 bmisc.tor.set()
 
+stdin_closed = False
+
 while True:
     # Run any pending "programmes" and figure out how long until the next
     # scheduled event if any; this provides a timeout for select().
@@ -646,7 +645,8 @@ while True:
 
     # Add the command interface (stdin).  Windows won't like this since it's
     # not a socket.
-    rlist.append(sys.stdin)
+    if not stdin_closed:
+        rlist.append(sys.stdin)
 
     if dbg.sokw:
         bmisc.stamprint("select" + repr((rlist, wlist, xlist, timeo)))
@@ -679,6 +679,10 @@ while True:
         # an abnormal case.  And alternatives I've tried don't work
         # right.
         cmdbuf = sys.stdin.readline()
+        if cmdbuf == "":
+            # End of file
+            bmisc.stamprint("EOF on stdin (command channel), won't read")
+            stdin_closed = True
         try:
             cmdi.handle_command(cmdbuf)
         except Exception as e:
