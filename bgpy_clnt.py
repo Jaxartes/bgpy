@@ -536,24 +536,32 @@ for a in sys.argv[1:-1]:
 
 peer_addr = sys.argv[-1]
 
-# open a connection
-
 bmisc.stamprint("Started.")
 
-sok = socket.socket(socket.AF_INET, socket.SOCK_STREAM,
-                    socket.IPPROTO_TCP)
+# figure out addresses
 
-bind_to = ("0.0.0.0", 0)
-do_bind = False
+af, connect_addr = bmisc.addr_for_socket(peer_addr, port = brepr.BGP_TCP_PORT)
 
-if equal_parms["local-addr"] != "":
-    bind_to = (equal_parms["local-addr"], bind_to[1])
-    do_bind = True
-if equal_parms["passive"]:
-    bind_to = (bind_to[0], brepr.BGP_TCP_PORT)
-    do_bind = True
+bind_to = None
 
-if do_bind:
+if equal_parms["local-addr"] != "" or equal_parms["passive"]:
+    bind_to_addr = equal_parms["local-addr"]
+    if bind_to_addr == "":
+        if af == socket.AF_INET:
+            bind_to_addr = "0.0.0.0"
+        else:
+            bind_to_addr = "::"
+    bind_to_port = None
+    if equal_parms["passive"]:
+        bind_to_port = brepr.BGP_TCP_PORT
+    bind_af, bind_to = bmisc.addr_for_socket(bind_to_addr, port = bind_to_port,
+                                             af = af, ifhint = connect_addr)
+
+# open a connection
+
+sok = socket.socket(af, socket.SOCK_STREAM, socket.IPPROTO_TCP)
+
+if bind_to is not None:
     try:
         sok.bind(bind_to)
     except Exception as e:
@@ -570,7 +578,7 @@ if equal_parms["passive"]:
 else:
     # make connection
     try:
-        sok.connect((peer_addr, brepr.BGP_TCP_PORT))
+        sok.connect(connect_addr)
     except Exception as e:
         print("Failed to connect to "+peer_addr+" port "+
               str(brepr.BGP_TCP_PORT)+": "+str(e), file=sys.stderr)

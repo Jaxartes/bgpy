@@ -1005,3 +1005,40 @@ def mask_check(pfx, ml):
         if b & lmask: lft = True
         if b & rmask: rgt = True
     return((lft, rgt))
+
+def addr_for_socket(addr, port = None, ifhint = None, af = None):
+    """Process an address for a socket.  Returns a tuple containing:
+            address family, like socket.AF_INET
+            tuple to pass to bind(), connect()"""
+
+    addr = str(addr)
+    if port is None: port = 0
+    port = int(port)
+
+    if af is None:
+        if addr.find(":") < 0:
+            af = socket.AF_INET
+        else:
+            af = socket.AF_INET6
+
+    if af == socket.AF_INET:
+        # IPv4
+        return((socket.AF_INET, (addr, port)))
+    elif not socket.has_ipv6:
+        raise Exception("IPv6 addresses not supported in this Python")
+    elif af == socket.AF_INET6:
+        parts = [addr, port]
+        ifindex = None
+        pct = addr.find("%")
+        if ifhint is not None and len(ifhint) > 3:
+            ifindex = ifhint[3]
+        if pct >= 0:
+            ifindex = socket.if_nametoindex(addr[pct+1:])
+        if ifindex is not None:
+            ifindex = int(ifindex)
+            parts.append(0)         # flow id, not used
+            parts.append(ifindex)   # interface index number
+        return(socket.AF_INET6, tuple(parts))
+    else:
+        raise Exception("Unsupported address family "+repr(af))
+
