@@ -187,6 +187,9 @@ def basic_orig(commanding, client, argv):
             bursts.  Default 1.
         bint=10
             Seconds between bursts of updates.  May be fractional.  Default 10.
+        blim=0
+            Limit number of subsequent bursts before ending.  No end if 0.
+            Default 0 (no end).
         slots=100
             Number of "slots" for keeping track of advertised routes.
             The maximum number of routes that have been advertised and not
@@ -252,6 +255,9 @@ def basic_orig(commanding, client, argv):
             bmisc.EqualParms_parse_num_rng(mn = 0.1, mx = 86400.0,
                                            t = float, tn = "number"))
     cfg["bint"] = 10.0 # default value
+    cfg.add("blim", "Limit number of subsequence bursts",
+            bmisc.EqualParms_parse_num_rng(mn = 0))
+    cfg["blim"] = 0 # default value
     cfg.add("slots", "Slots for tracking our routes",
             bmisc.EqualParms_parse_num_rng(mn = 1, mx = 10000000))
     cfg["slots"] = 100 # default value
@@ -333,6 +339,10 @@ def basic_orig(commanding, client, argv):
     togo = cfg["iupd"]
     bmisc.stamprint(progname + ": sending " + str(togo) + " initial updates")
 
+    # burst limit
+    blim = cfg["blim"]
+    if blim <= 0: blim = None # no limit
+
     ## ## main loop sending updates & waiting
     if len(cfg["aspath"]) < 1:
         if client.local_as == client.open_recv.my_as:
@@ -353,6 +363,14 @@ def basic_orig(commanding, client, argv):
             togo = cfg["bupd"]
             bmisc.stamprint(progname + ": sending " + str(togo) +
                             " periodic updates")
+            if blim is not None:
+                # count bursts
+                blim -= 1
+                if blim < 0:
+                    bmisc.stamprint(progname +
+                                    ": ending after " +
+                                    str(cfg["blim"]) + " non-initial bursts.")
+                    break
             continue
 
         # pick a "slot" to update; *what* we do depends on what's in the slot
