@@ -361,8 +361,6 @@ def basic_orig(commanding, client, argv):
                             ": waiting for "+repr(cfg["bint"])+" seconds")
             yield(cfg["bint"] + bmisc.tor.get())
             togo = cfg["bupd"]
-            bmisc.stamprint(progname + ": sending " + str(togo) +
-                            " periodic updates")
             if blim is not None:
                 # count bursts
                 blim -= 1
@@ -371,6 +369,8 @@ def basic_orig(commanding, client, argv):
                                     ": ending after " +
                                     str(cfg["blim"]) + " non-initial bursts.")
                     break
+            bmisc.stamprint(progname + ": sending " + str(togo) +
+                            " periodic updates")
             continue
 
         # pick a "slot" to update; *what* we do depends on what's in the slot

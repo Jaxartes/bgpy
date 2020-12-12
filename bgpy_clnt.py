@@ -520,6 +520,8 @@ def usage():
     print("Named parameters recognized:", file=sys.stderr)
     for n, d in equal_parms.describe():
         print("\t"+n+": "+d, file=sys.stderr)
+    print("Even with 'passive=1', peer-address is required (though barely"+
+          " used.)", file= sys.stderr)
     sys.exit(1)
 
 if len(sys.argv) < 2:
@@ -602,7 +604,7 @@ if equal_parms["tcp-hex"]:
     def tcp_hex_handler(wrpsok, rw, data):
         if len(data) == 0: return # nothing to do
 
-        if rw is "r":   (posa, rws) = (tcp_hex_ipos, "tcp-rcv")
+        if rw == "r":   (posa, rws) = (tcp_hex_ipos, "tcp-rcv")
         else:           (posa, rws) = (tcp_hex_opos, "tcp-snd")
 
         bmisc.stamprint(rws+", "+str(len(data))+" bytes:")
@@ -709,7 +711,7 @@ while True:
             bmisc.stamprint("Recv err: " + repr(e))
             if dbg.estk:
                 for line in format_exc().split("\n"):
-                    if line is not "":
+                    if line != "":
                         bmisc.stamprint("    " + line)
         if msg is None:
             break       # no more messages
