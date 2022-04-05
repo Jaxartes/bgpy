@@ -988,7 +988,7 @@ class ASPath(BGPThing):
             arg = args[0]
 
         # if the argument is a string, parse it as user input
-        if args[0] is "":
+        if args[0] == "":
             # Special case: empty AS path
             self.segs = []
             self.two = True

@@ -670,10 +670,10 @@ class EqualParms(object):
 
         for line in file:
             line = line.strip()
-            if line is "":
+            if line == "":
                 # skip blank lines
                 continue
-            if line[0] is "#":
+            if line[0] == "#":
                 # skip "#" comment lines
                 continue
             try:
@@ -817,8 +817,8 @@ def parse_ipv6(s):
         raise Exception(repr(s)+" is not a valid IPv6 address: too few ':'s")
 
     # handle "::"
-    if subs[0] is "" and subs[1] is "":
-        if subs[2] is "":
+    if subs[0] == "" and subs[1] == "":
+        if subs[2] == "":
             # "::"
             insat = 0
             subs = subs[3:]
@@ -826,7 +826,7 @@ def parse_ipv6(s):
             # "::..."
             insat = 0
             subs = subs[2:]
-    elif subs[-1] is "" and subs[-2] is "":
+    elif subs[-1] == "" and subs[-2] == "":
         # "...::"
         subs = subs[:-2]
         insat = len(subs)
@@ -902,7 +902,7 @@ def parse_communities(s):
 
     ba = bytearray()
 
-    if s is not "":
+    if s != "":
         for sub in s.split(","):
             sub = int(sub)
             ba_put_be4(ba, sub & 0xffffffff)
@@ -919,7 +919,7 @@ def parse_xcommunities(s):
 
     ba = bytearray()
 
-    if s is not "":
+    if s != "":
         for sub in s.split(","):
             sub = int(sub)
             ba_put_be4(ba, (sub >> 32) & 0xffffffff)

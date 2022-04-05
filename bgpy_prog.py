@@ -460,7 +460,7 @@ def basic_orig(commanding, client, argv):
                 communities_str = prng.choice(cfg["com"])
             else:
                 communities_str = ""
-            if communities_str is not "":
+            if communities_str != "":
                 communities = bmisc.parse_communities(communities_str)
                 attrs.append(brepr.BGPAttribute(client.env,
                                                 brepr.attr_flag.Optional|
@@ -473,7 +473,7 @@ def basic_orig(commanding, client, argv):
                 xcommunities_str = prng.choice(cfg["xcom"])
             else:
                 xcommunities_str = ""
-            if xcommunities_str is not "":
+            if xcommunities_str != "":
                 xcommunities = bmisc.parse_xcommunities(xcommunities_str)
                 attrs.append(brepr.BGPAttribute(client.env,
                                                 brepr.attr_flag.Optional|
